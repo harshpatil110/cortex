@@ -21,6 +21,9 @@ dependencies = [
     "python-multipart>=0.0.9",
     "python-magic-bin>=0.4.14",
     "python-slugify>=8.0.4",
+    "yt-dlp>=2023.11.16",
+    "playwright>=1.40.0",
+    "httpx>=0.25.0",
 ]
 
 [project.optional-dependencies]

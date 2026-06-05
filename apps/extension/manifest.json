@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Cortex Extension",
+  "version": "1.0",
+  "description": "Cortex - Personal AI Memory Engine",
+  "action": {
+    "default_popup": "index.html"
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "permissions": ["storage", "activeTab"]
+}

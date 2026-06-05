@@ -1,0 +1,37 @@
+{
+  "name": "cortex-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.26",
+    "husky": "^8.0.0",
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.0.0",
+    "turbo": "^1.11.0"
+  },
+  "lint-staged": {
+    "apps/frontend/**/*.{js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "apps/extension/**/*.{js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "apps/backend/**/*.py": [
+      "black",
+      "isort",
+      "flake8"
+    ]
+  }
+}

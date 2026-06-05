@@ -1,0 +1,52 @@
+# =========================
+# Node.js & Frontend/Extension
+# =========================
+node_modules/
+dist/
+build/
+npm-debug.log
+.pnpm-debug.log
+
+# =========================
+# Python & Backend
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+celerybeat-schedule
+
+# =========================
+# Monorepo / Turborepo
+# =========================
+.turbo/
+
+# =========================
+# Environment Variables
+# =========================
+.env
+.env.local
+.env.*
+!.env.example
+
+# =========================
+# Local Databases & Temp Media
+# =========================
+/data/
+data/chromadb/
+/temp/
+/temp_frames/
+*.mp4
+*.wav
+
+# =========================
+# OS & Editor
+# =========================
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install Node Dependencies
+        run: pnpm install
+        
+      - name: Install Python Dependencies
+        run: |
+          pip install black isort flake8
+          # pip install -e apps/backend[dev]
+          
+      - name: Lint Frontend and Extension (JS/JSX)
+        run: pnpm turbo run lint
+        
+      - name: Lint Backend (Python)
+        run: |
+          black --check apps/backend
+          isort --check apps/backend
+          flake8 apps/backend
+          
+      - name: Run Tests
+        run: pnpm turbo run test

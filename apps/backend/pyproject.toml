@@ -24,6 +24,8 @@ dependencies = [
     "yt-dlp>=2023.11.16",
     "playwright>=1.40.0",
     "httpx>=0.25.0",
+    "trafilatura>=1.6.0",
+    "beautifulsoup4>=4.12.0",
 ]
 
 [project.optional-dependencies]

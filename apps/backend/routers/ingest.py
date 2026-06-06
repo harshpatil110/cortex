@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from middleware.auth import get_current_user
 from schemas.ingest import IngestResponse, UrlIngestRequest
 from services.scrapers.instagram_scraper import InstagramScraper
+from services.scrapers.web_scraper import WebScraper
 from services.storage_service import process_upload, supabase
 from workers.process_memory import process_memory_task
 
@@ -45,15 +46,17 @@ async def ingest_url(
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found in token")
 
-    if payload.content_type != "instagram_reel":
-        raise HTTPException(
-            status_code=400, detail="Only 'instagram_reel' is currently supported"
-        )
+    if payload.content_type not in ["instagram_reel", "web_page"]:
+        raise HTTPException(status_code=400, detail="Unsupported content type")
 
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured")
 
-    scraper = InstagramScraper()
+    if payload.content_type == "instagram_reel":
+        scraper = InstagramScraper()
+    else:
+        scraper = WebScraper()
+
     try:
         scraped_data = await scraper.scrape(payload.url)
     except ValueError as ve:
@@ -67,15 +70,16 @@ async def ingest_url(
     thumb_path = os.path.join(tempfile.gettempdir(), f"{short_id}.jpg")
 
     async with httpx.AsyncClient() as client:
-        # Download MP4
-        async with client.stream("GET", scraped_data["mp4_url"]) as response:
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=500, detail="Failed to download video stream"
-                )
-            with open(mp4_path, "wb") as f:
-                async for chunk in response.aiter_bytes():
-                    f.write(chunk)
+        # Download MP4 if present
+        if scraped_data.get("mp4_url"):
+            async with client.stream("GET", scraped_data["mp4_url"]) as response:
+                if response.status_code != 200:
+                    raise HTTPException(
+                        status_code=500, detail="Failed to download video stream"
+                    )
+                with open(mp4_path, "wb") as f:
+                    async for chunk in response.aiter_bytes():
+                        f.write(chunk)
 
         # Download thumbnail if present
         if scraped_data.get("thumbnail_url"):
@@ -90,15 +94,18 @@ async def ingest_url(
                 pass  # Thumbnail is non-critical, we can ignore failure
 
     # Upload to Supabase Storage
-    safe_name = f"ig_reel_{short_id}"
+    safe_name = f"ingest_{short_id}"
     video_storage_path = f"{user_id}/{safe_name}.mp4"
     thumb_storage_path = f"{user_id}/{safe_name}.jpg"
 
     try:
-        with open(mp4_path, "rb") as f:
-            supabase.storage.from_("raw-media").upload(
-                video_storage_path, f.read(), file_options={"content-type": "video/mp4"}
-            )
+        if scraped_data.get("mp4_url") and os.path.exists(mp4_path):
+            with open(mp4_path, "rb") as f:
+                supabase.storage.from_("raw-media").upload(
+                    video_storage_path,
+                    f.read(),
+                    file_options={"content-type": "video/mp4"},
+                )
 
         if os.path.exists(thumb_path):
             with open(thumb_path, "rb") as f:
@@ -118,21 +125,22 @@ async def ingest_url(
 
     # Insert Database Records
     try:
-        mem_res = (
-            supabase.table("user_memories")
-            .insert(
-                {
-                    "user_id": user_id,
-                    "content_type": payload.content_type,
-                    "storage_path": f"raw-media/{video_storage_path}",
-                    "source_url": scraped_data["webpage_url"],
-                    "creator_metadata": scraped_data["creator_metadata"],
-                    "ai_summary": {},
-                    "indexed": False,
-                }
-            )
-            .execute()
-        )
+        insert_data = {
+            "user_id": user_id,
+            "content_type": payload.content_type,
+            "source_url": scraped_data["webpage_url"],
+            "creator_metadata": scraped_data["creator_metadata"],
+            "ai_summary": {},
+            "indexed": False,
+        }
+
+        if scraped_data.get("mp4_url") and os.path.exists(mp4_path):
+            insert_data["storage_path"] = f"raw-media/{video_storage_path}"
+
+        if scraped_data.get("raw_transcript"):
+            insert_data["raw_transcript"] = scraped_data["raw_transcript"]
+
+        mem_res = supabase.table("user_memories").insert(insert_data).execute()
         memory_id = mem_res.data[0]["id"]
 
         job_res = (

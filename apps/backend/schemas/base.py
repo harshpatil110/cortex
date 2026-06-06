@@ -29,6 +29,8 @@ class JobStatus(BaseModel):
     status: str
     current_stage: Optional[str] = None
     error_message: Optional[str] = None
+    memory_id: Optional[str] = None
+    user_id: Optional[str] = None
 
 
 class ChatMessage(BaseModel):

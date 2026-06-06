@@ -106,9 +106,9 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
             elif stage == "PDF_EXTRACT":
                 import tempfile
 
-                from services.pdf_service import PDFExtractionService
+                from services.processors.pdf_processor import PDFProcessor
 
-                pdf_service = PDFExtractionService()
+                processor = PDFProcessor()
                 if supabase:
                     mem_res = (
                         supabase.table("user_memories")
@@ -130,7 +130,7 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                                 )
                                 with open(temp_pdf, "wb") as f:
                                     f.write(res)
-                                extracted_text = pdf_service.extract_text(temp_pdf)
+                                extracted_text = processor.process(temp_pdf)
                                 supabase.table("user_memories").update(
                                     {"raw_transcript": extracted_text}
                                 ).eq("id", memory_id).execute()

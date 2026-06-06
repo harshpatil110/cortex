@@ -5,6 +5,8 @@ import time
 from celery import shared_task
 from supabase import Client, create_client
 
+from services.thumbnail_service import ThumbnailService
+
 logger = logging.getLogger(__name__)
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -98,7 +100,49 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
 
         for stage in stages:
             update_job_stage(job_id, stage, "PROCESSING")
-            mock_stage(stage)
+            if stage == "THUMBNAIL":
+                service = ThumbnailService()
+                service.process_thumbnail(memory_id, content_type)
+            elif stage == "PDF_EXTRACT":
+                import tempfile
+
+                from services.pdf_service import PDFExtractionService
+
+                pdf_service = PDFExtractionService()
+                if supabase:
+                    mem_res = (
+                        supabase.table("user_memories")
+                        .select("storage_path")
+                        .eq("id", memory_id)
+                        .execute()
+                    )
+                    if mem_res.data:
+                        storage_path = mem_res.data[0].get("storage_path")
+                        if storage_path:
+                            bucket = storage_path.split("/")[0]
+                            file_path_in_bucket = "/".join(storage_path.split("/")[1:])
+                            temp_pdf = os.path.join(
+                                tempfile.gettempdir(), f"source_{memory_id}.pdf"
+                            )
+                            try:
+                                res = supabase.storage.from_(bucket).download(
+                                    file_path_in_bucket
+                                )
+                                with open(temp_pdf, "wb") as f:
+                                    f.write(res)
+                                extracted_text = pdf_service.extract_text(temp_pdf)
+                                supabase.table("user_memories").update(
+                                    {"raw_transcript": extracted_text}
+                                ).eq("id", memory_id).execute()
+                            except Exception as e:
+                                logger.error(
+                                    f"PDF extraction failed for {memory_id}: {e}"
+                                )
+                            finally:
+                                if os.path.exists(temp_pdf):
+                                    os.remove(temp_pdf)
+            else:
+                mock_stage(stage)
 
         update_job_stage(job_id, "COMPLETE", "COMPLETE")
 

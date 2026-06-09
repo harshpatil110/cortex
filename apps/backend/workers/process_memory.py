@@ -247,6 +247,56 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                                 )
                             finally:
                                 shutil.rmtree(temp_dir, ignore_errors=True)
+            elif stage == "OCR_IMAGE":
+                import shutil
+                import tempfile
+
+                from services.processors.image_processor import ImageProcessor
+
+                if supabase:
+                    mem_res = (
+                        supabase.table("user_memories")
+                        .select("storage_path")
+                        .eq("id", memory_id)
+                        .execute()
+                    )
+                    if mem_res.data:
+                        storage_path = mem_res.data[0].get("storage_path")
+                        if storage_path:
+                            bucket = storage_path.split("/")[0]
+                            file_path_in_bucket = "/".join(storage_path.split("/")[1:])
+
+                            temp_dir = tempfile.mkdtemp(
+                                prefix=f"cortex_{memory_id}_img_"
+                            )
+
+                            ext = os.path.splitext(file_path_in_bucket)[1] or ".jpg"
+                            temp_img = os.path.join(
+                                temp_dir, f"source_{memory_id}{ext}"
+                            )
+
+                            processor = ImageProcessor()
+
+                            try:
+                                res = supabase.storage.from_(bucket).download(
+                                    file_path_in_bucket
+                                )
+                                with open(temp_img, "wb") as f:
+                                    f.write(res)
+
+                                extracted_text = processor.process(temp_img)
+
+                                if extracted_text:
+                                    supabase.table("user_memories").update(
+                                        {"ocr_extracted_text": extracted_text}
+                                    ).eq("id", memory_id).execute()
+
+                            except Exception as e:
+                                logger.error(
+                                    f"Image OCR processing failed for {memory_id}: {e}"
+                                )
+                            finally:
+                                shutil.rmtree(temp_dir, ignore_errors=True)
             else:
                 mock_stage(stage)
 

@@ -162,19 +162,30 @@ class EmbeddingService:
 
     def get_by_ids(self, ids: list[str]) -> list[dict]:
         """Core batch fetch method to pull documents/metadata from ChromaDB by IDs."""
-        results = self.collection.get(ids=ids)
+        results = self.collection.get(
+            ids=ids, include=["embeddings", "documents", "metadatas"]
+        )
 
         formatted_results = []
-        if results and results["ids"]:
+        if results and results.get("ids"):
             for i in range(len(results["ids"])):
                 formatted_results.append(
                     {
                         "id": results["ids"][i],
+                        "embedding": (
+                            results["embeddings"][i]
+                            if results.get("embeddings")
+                            else None
+                        ),
                         "document": (
-                            results["documents"][i] if results["documents"] else None
+                            results["documents"][i]
+                            if results.get("documents")
+                            else None
                         ),
                         "metadata": (
-                            results["metadatas"][i] if results["metadatas"] else None
+                            results["metadatas"][i]
+                            if results.get("metadatas")
+                            else None
                         ),
                     }
                 )

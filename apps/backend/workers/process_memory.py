@@ -412,6 +412,15 @@ TECH STACK: {' '.join(ai_sum.tech_stack)}
                                     memory_id, embedding_text, metadata
                                 )
                             )
+                            from workers.cluster_task import cluster_single_memory_task
+
+                            cluster_single_memory_task.apply_async(
+                                args=[
+                                    memory_id,
+                                    user_id,
+                                    ai_sum.tags + ai_sum.tech_stack,
+                                ]
+                            )
                         except Exception as e:
                             logger.error(
                                 "Embedding stage failed completely for "

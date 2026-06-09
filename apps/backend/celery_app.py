@@ -18,7 +18,11 @@ celery_app = Celery(
     "cortex_backend",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["workers.process_memory"],
+    include=[
+        "workers.process_memory",
+        "workers.cluster_task",
+        "workers.recluster_task",
+    ],
 )
 
 celery_app.conf.update(
@@ -41,7 +45,7 @@ celery_app.conf.update(
 
 celery_app.conf.beat_schedule = {
     "nightly-reclustering": {
-        "task": "workers.process_memory.recluster_task",
-        "schedule": crontab(hour=3, minute=0),
+        "task": "recluster_all_memories",
+        "schedule": crontab(hour=2, minute=0),
     },
 }

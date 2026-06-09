@@ -202,6 +202,51 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                     logger.warning(
                         f"Skipping TRANSCRIBING: No WAV file found for {memory_id}"
                     )
+            elif stage == "OCR_FRAMES":
+                import shutil
+                import tempfile
+
+                from services.processors.video_processor import process_video_frames
+
+                if supabase:
+                    mem_res = (
+                        supabase.table("user_memories")
+                        .select("storage_path")
+                        .eq("id", memory_id)
+                        .execute()
+                    )
+                    if mem_res.data:
+                        storage_path = mem_res.data[0].get("storage_path")
+                        if storage_path:
+                            bucket = storage_path.split("/")[0]
+                            file_path_in_bucket = "/".join(storage_path.split("/")[1:])
+
+                            temp_dir = tempfile.mkdtemp(prefix=f"cortex_{memory_id}_")
+                            temp_mp4 = os.path.join(temp_dir, f"source_{memory_id}.mp4")
+                            frames_dir = os.path.join(temp_dir, "frames")
+
+                            try:
+                                res = supabase.storage.from_(bucket).download(
+                                    file_path_in_bucket
+                                )
+                                with open(temp_mp4, "wb") as f:
+                                    f.write(res)
+
+                                extracted_text = process_video_frames(
+                                    temp_mp4, frames_dir
+                                )
+
+                                if extracted_text:
+                                    supabase.table("user_memories").update(
+                                        {"ocr_extracted_text": extracted_text}
+                                    ).eq("id", memory_id).execute()
+
+                            except Exception as e:
+                                logger.error(
+                                    f"Video OCR processing failed for {memory_id}: {e}"
+                                )
+                            finally:
+                                shutil.rmtree(temp_dir, ignore_errors=True)
             else:
                 mock_stage(stage)
 

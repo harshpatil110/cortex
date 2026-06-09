@@ -98,6 +98,8 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
         else:
             raise ValueError(f"Unknown content_type: {content_type}")
 
+        wav_temp_path = None
+
         for stage in stages:
             update_job_stage(job_id, stage, "PROCESSING")
             if stage == "THUMBNAIL":
@@ -141,6 +143,65 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                             finally:
                                 if os.path.exists(temp_pdf):
                                     os.remove(temp_pdf)
+            elif stage == "AUDIO_EXTRACT":
+                import tempfile
+
+                from services.processors.audio_processor import extract_audio
+
+                if supabase:
+                    mem_res = (
+                        supabase.table("user_memories")
+                        .select("storage_path")
+                        .eq("id", memory_id)
+                        .execute()
+                    )
+                    if mem_res.data:
+                        storage_path = mem_res.data[0].get("storage_path")
+                        if storage_path:
+                            bucket = storage_path.split("/")[0]
+                            file_path_in_bucket = "/".join(storage_path.split("/")[1:])
+
+                            temp_mp4 = os.path.join(
+                                tempfile.gettempdir(), f"source_{memory_id}.mp4"
+                            )
+                            wav_temp_path = os.path.join(
+                                tempfile.gettempdir(), f"audio_{memory_id}.wav"
+                            )
+
+                            try:
+                                res = supabase.storage.from_(bucket).download(
+                                    file_path_in_bucket
+                                )
+                                with open(temp_mp4, "wb") as f:
+                                    f.write(res)
+
+                                extract_audio(temp_mp4, wav_temp_path)
+                            except Exception as e:
+                                logger.error(
+                                    f"Audio extraction failed for {memory_id}: {e}"
+                                )
+                                wav_temp_path = None
+                            finally:
+                                if os.path.exists(temp_mp4):
+                                    os.remove(temp_mp4)
+            elif stage == "TRANSCRIBING":
+                if wav_temp_path and os.path.exists(wav_temp_path):
+                    from services.transcription_service import TranscriptionService
+
+                    transcription_service = TranscriptionService()
+
+                    try:
+                        transcript = transcription_service.transcribe(wav_temp_path)
+                        if supabase:
+                            supabase.table("user_memories").update(
+                                {"raw_transcript": transcript}
+                            ).eq("id", memory_id).execute()
+                    except Exception as e:
+                        logger.error(f"Transcription failed for {memory_id}: {e}")
+                else:
+                    logger.warning(
+                        f"Skipping TRANSCRIBING: No WAV file found for {memory_id}"
+                    )
             else:
                 mock_stage(stage)
 

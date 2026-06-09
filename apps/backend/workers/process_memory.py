@@ -297,6 +297,49 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                                 )
                             finally:
                                 shutil.rmtree(temp_dir, ignore_errors=True)
+            elif stage == "SYNTHESIZING":
+                import asyncio
+
+                from services.processors.synthesis_service import SynthesisService
+
+                if supabase:
+                    mem_res = (
+                        supabase.table("user_memories")
+                        .select("*")
+                        .eq("id", memory_id)
+                        .execute()
+                    )
+                    if mem_res.data:
+                        memory_data = mem_res.data[0]
+
+                        payload = {
+                            "content_type": memory_data.get("content_type"),
+                            "source_url": memory_data.get("url"),
+                            "creator_handle": memory_data.get(
+                                "creator_handle", "unknown"
+                            ),
+                            "caption_or_title": memory_data.get("title", "unknown"),
+                            "raw_transcript": memory_data.get("raw_transcript", ""),
+                            "ocr_extracted_text": memory_data.get(
+                                "ocr_extracted_text", ""
+                            ),
+                            "hashtags": "unknown",
+                        }
+
+                        synthesis_service = SynthesisService()
+                        try:
+                            # Run async method in sync Celery task
+                            validated_json = asyncio.run(
+                                synthesis_service.synthesize(payload)
+                            )
+
+                            supabase.table("user_memories").update(
+                                {"ai_summary": validated_json}
+                            ).eq("id", memory_id).execute()
+                        except Exception as e:
+                            logger.error(
+                                f"Synthesis processing failed for {memory_id}: {e}"
+                            )
             else:
                 mock_stage(stage)
 

@@ -340,19 +340,87 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                             logger.error(
                                 f"Synthesis processing failed for {memory_id}: {e}"
                             )
+            elif stage == "EMBEDDING":
+                import asyncio
+                from datetime import datetime
+
+                from services.embedding_service import embedding_service
+
+                if supabase:
+                    mem_res = (
+                        supabase.table("user_memories")
+                        .select("*")
+                        .eq("id", memory_id)
+                        .execute()
+                    )
+                    if mem_res.data:
+                        memory_data = mem_res.data[0]
+
+                        ai_summary = memory_data.get("ai_summary")
+                        if not ai_summary:
+                            logger.warning(
+                                f"No AI summary found for memory {memory_id}. "
+                                "Cannot embed."
+                            )
+                            continue
+
+                        class AISummaryWrapper:
+                            def __init__(self, data):
+                                self.title = data.get("title", "")
+                                self.abstract = data.get("abstract", "")
+                                self.takeaways = data.get("takeaways", [])
+                                self.tech_stack = data.get("tech_stack", [])
+                                self.tags = data.get("tags", [])
+
+                        ai_sum = AISummaryWrapper(ai_summary)
+                        creator_handle = memory_data.get("creator_handle", "unknown")
+                        raw_transcript = memory_data.get("raw_transcript", "") or ""
+                        ocr_extracted_text = (
+                            memory_data.get("ocr_extracted_text", "") or ""
+                        )
+
+                        embedding_text = f"""
+{ai_sum.title} {creator_handle}
+SUMMARY ABSTRACT: {ai_sum.abstract}
+EXTRACTED KEY TAKEAWAYS: {' | '.join(ai_sum.takeaways)}
+TRANSCRIPT SYNTHESIS: {raw_transcript[:2000]}
+VISUAL TEXT CONTEXT: {ocr_extracted_text[:1000]}
+TECH STACK: {' '.join(ai_sum.tech_stack)}
+"""
+                        user_id = memory_data.get("user_id")
+                        content_type = memory_data.get("content_type", "unknown")
+                        try:
+                            created_dt = datetime.fromisoformat(
+                                memory_data.get("created_at", "").replace("Z", "+00:00")
+                            )
+                            created_ts = int(created_dt.timestamp())
+                        except Exception:
+                            created_ts = int(datetime.utcnow().timestamp())
+
+                        metadata = {
+                            "user_id": user_id,
+                            "content_type": content_type,
+                            "created_at": created_ts,
+                            "tags_csv": ",".join(ai_sum.tags),
+                            "tech_stack_csv": ",".join(ai_sum.tech_stack),
+                            "plate_id": "",  # To be filled in Task 17
+                        }
+
+                        try:
+                            asyncio.run(
+                                embedding_service.upsert_memory(
+                                    memory_id, embedding_text, metadata
+                                )
+                            )
+                        except Exception as e:
+                            logger.error(
+                                "Embedding stage failed completely for "
+                                f"{memory_id}: {e}"
+                            )
             else:
                 mock_stage(stage)
 
         update_job_stage(job_id, "COMPLETE", "COMPLETE")
-
-        if supabase:
-            try:
-                supabase.table("user_memories").update({"indexed": True}).eq(
-                    "id", memory_id
-                ).execute()
-                logger.info(f"Memory {memory_id} marked as indexed.")
-            except Exception as e:
-                logger.error(f"Failed to mark memory {memory_id} as indexed: {e}")
 
     except Exception as e:
         logger.error(f"process_memory_task failed for job {job_id}: {e}")

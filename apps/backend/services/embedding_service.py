@@ -1,71 +1,117 @@
+import asyncio
+import logging
 import os
+from datetime import datetime
 
 import chromadb
-from openai import OpenAI
-from sentence_transformers import SentenceTransformer
 
-# Load environment variables
+try:
+    import google.generativeai as genai
+
+    GENAI_AVAILABLE = True
+except ImportError:
+    GENAI_AVAILABLE = False
+
+
 CHROMA_PERSIST_PATH = os.getenv("CHROMA_PERSIST_PATH", "./data/chromadb")
-EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "local")  # "openai" or "local"
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:
     def __init__(self):
-        # Initialize ChromaDB PersistentClient
         self.chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
 
-        # Get or create the collection with cosine distance metric
         self.collection = self.chroma_client.get_or_create_collection(
             name="mnemonic_memories", metadata={"hnsw:space": "cosine"}
         )
 
-        # Initialize Provider
-        self.provider = EMBEDDING_PROVIDER
-        if self.provider == "openai":
-            self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            self.model = None
-        elif self.provider == "local":
-            self.model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-            self.openai_client = None
+        self.api_key = os.getenv("GEMINI_API_KEY")
+        if GENAI_AVAILABLE and self.api_key:
+            genai.configure(api_key=self.api_key)
         else:
-            raise ValueError(f"Unsupported embedding provider: {self.provider}")
-
-    def embed_text(self, text: str) -> list[float]:
-        """Generates a single vector embedding based on the provider."""
-        if self.provider == "openai":
-            response = self.openai_client.embeddings.create(
-                input=[text], model="text-embedding-3-small"
+            logger.warning(
+                "Gemini API is not configured or google-generativeai not installed."
             )
-            return response.data[0].embedding
-        elif self.provider == "local":
-            embedding = self.model.encode(text)
-            return embedding.tolist()
 
-    def upsert_memory(self, id: str, text: str, metadata: dict) -> None:
-        """Inserts or updates a vector in ChromaDB with strictly enforced metadata."""
-        # Enforce metadata schema
-        required_keys = {
-            "user_id",
-            "content_type",
-            "created_at",
-            "plate_id",
-            "tags_csv",
-        }
-        for key in required_keys:
-            if key not in metadata:
-                raise ValueError(f"Missing required metadata key: {key}")
+    async def embed_text(self, text: str) -> list[float]:
+        """Generates a single vector embedding using Gemini API."""
+        if not GENAI_AVAILABLE or not self.api_key:
+            raise RuntimeError("Gemini API is not available for embedding.")
 
-        # Validate types
-        if not isinstance(metadata["user_id"], str):
-            raise TypeError("user_id must be a string")
-        if not isinstance(metadata["created_at"], int):
-            raise TypeError("created_at must be an integer (unix timestamp)")
+        def _call_embed():
+            response = genai.embed_content(
+                model="models/text-embedding-004", content=text
+            )
+            return response["embedding"]
 
-        embedding = self.embed_text(text)
+        return await asyncio.to_thread(_call_embed)
 
-        self.collection.upsert(
-            ids=[id], embeddings=[embedding], documents=[text], metadatas=[metadata]
-        )
+    async def upsert_memory(
+        self, memory_id: str, embedding_text: str, metadata: dict
+    ) -> None:
+        """Inserts or updates a vector in ChromaDB with fault-tolerance."""
+        # Note: Importing supabase inside the function to avoid circular imports if any
+        from utils.supabase_client import get_supabase_client
+
+        supabase = get_supabase_client()
+
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            try:
+                embedding = await self.embed_text(embedding_text)
+
+                def _upsert():
+                    self.collection.upsert(
+                        ids=[memory_id],
+                        embeddings=[embedding],
+                        documents=[embedding_text],
+                        metadatas=[metadata],
+                    )
+
+                await asyncio.to_thread(_upsert)
+
+                if supabase:
+
+                    def _update_db_success():
+                        supabase.table("user_memories").update(
+                            {
+                                "indexed": True,
+                                "updated_at": datetime.utcnow().isoformat(),
+                            }
+                        ).eq("id", memory_id).execute()
+
+                    await asyncio.to_thread(_update_db_success)
+
+                logger.info(f"Successfully embedded and upserted memory {memory_id}")
+                return
+
+            except Exception as e:
+                logger.warning(
+                    f"Embedding/Upsert attempt {attempt + 1} failed "
+                    f"for {memory_id}: {e}"
+                )
+                if attempt < max_retries:
+                    await asyncio.sleep(5)
+                else:
+                    logger.error(
+                        f"Failed to upsert memory {memory_id} after "
+                        f"{max_retries} retries."
+                    )
+                    if supabase:
+
+                        def _update_db_fail():
+                            supabase.table("user_memories").update(
+                                {"indexed": False}
+                            ).eq("id", memory_id).execute()
+
+                        try:
+                            await asyncio.to_thread(_update_db_fail)
+                        except Exception as inner_e:
+                            logger.error(
+                                f"Failed to set indexed=False for {memory_id}: "
+                                f"{inner_e}"
+                            )
 
     def query_similar(
         self, text: str, user_id: str, n: int = 20, filters: dict = None
@@ -76,12 +122,13 @@ class EmbeddingService:
                 "user_id is mandatory for querying to enforce data isolation."
             )
 
-        embedding = self.embed_text(text)
+        # Synchronous wrapper for embed_text just for querying
+        # since it's typically called from sync context or we can run an event loop
+        loop = asyncio.get_event_loop()
+        embedding = loop.run_until_complete(self.embed_text(text))
 
-        # Enforce user_id isolation in the where clause
         where_clause = {"user_id": user_id}
 
-        # If additional filters are provided, combine them using $and
         if filters:
             where_clause = {"$and": [{"user_id": user_id}, filters]}
 
@@ -89,7 +136,6 @@ class EmbeddingService:
             query_embeddings=[embedding], n_results=n, where=where_clause
         )
 
-        # Format results
         formatted_results = []
         if results and results["ids"] and len(results["ids"]) > 0:
             for i in range(len(results["ids"][0])):

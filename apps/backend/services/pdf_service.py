@@ -56,7 +56,7 @@ class PDFExtractionService:
                 )
                 if TESSERACT_AVAILABLE:
                     pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
                     try:
                         text = pytesseract.image_to_string(img)
                         full_text.append(text)

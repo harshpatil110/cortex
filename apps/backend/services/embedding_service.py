@@ -1,7 +1,8 @@
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Any
 
 import chromadb
 
@@ -77,7 +78,7 @@ class EmbeddingService:
                         supabase.table("user_memories").update(
                             {
                                 "indexed": True,
-                                "updated_at": datetime.utcnow().isoformat(),
+                                "updated_at": datetime.now(timezone.utc).isoformat(),
                             }
                         ).eq("id", memory_id).execute()
 
@@ -114,7 +115,7 @@ class EmbeddingService:
                             )
 
     def query_similar(
-        self, text: str, user_id: str, n: int = 20, filters: dict = None
+        self, text: str, user_id: str, n: int = 20, filters: dict | None = None
     ) -> list[dict]:
         """Queries the collection with mandatory multi-tenant isolation (user_id)."""
         if not user_id:
@@ -127,13 +128,15 @@ class EmbeddingService:
         loop = asyncio.get_event_loop()
         embedding = loop.run_until_complete(self.embed_text(text))
 
-        where_clause = {"user_id": user_id}
+        where_clause: dict[str, Any] = {"user_id": user_id}
 
         if filters:
             where_clause = {"$and": [{"user_id": user_id}, filters]}
 
         results = self.collection.query(
-            query_embeddings=[embedding], n_results=n, where=where_clause
+            query_embeddings=[embedding],
+            n_results=n,
+            where=where_clause,  # type: ignore
         )
 
         formatted_results = []

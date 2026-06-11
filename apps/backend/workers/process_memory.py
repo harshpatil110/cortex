@@ -14,13 +14,16 @@ SUPABASE_KEY = os.getenv(
     "SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_ANON_KEY", "")
 )
 
-supabase: Client = (
+supabase: Client | None = (
     create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 )
 
 
 def update_job_stage(
-    job_id: str, stage_name: str, status: str = "PROCESSING", error_message: str = None
+    job_id: str,
+    stage_name: str,
+    status: str = "PROCESSING",
+    error_message: str | None = None,
 ):
     if not supabase:
         logger.warning("Supabase client not configured. Cannot update job stage.")
@@ -118,7 +121,7 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                         .eq("id", memory_id)
                         .execute()
                     )
-                    if mem_res.data:
+                    if mem_res.data and isinstance(mem_res.data[0], dict):
                         storage_path = mem_res.data[0].get("storage_path")
                         if storage_path:
                             bucket = storage_path.split("/")[0]
@@ -309,12 +312,12 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                         .eq("id", memory_id)
                         .execute()
                     )
-                    if mem_res.data:
+                    if mem_res.data and isinstance(mem_res.data[0], dict):
                         memory_data = mem_res.data[0]
 
                         payload = {
                             "content_type": memory_data.get("content_type"),
-                            "source_url": memory_data.get("url"),
+                            "source_url": memory_data.get("source_url"),
                             "creator_handle": memory_data.get(
                                 "creator_handle", "unknown"
                             ),
@@ -342,7 +345,7 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                             )
             elif stage == "EMBEDDING":
                 import asyncio
-                from datetime import datetime
+                from datetime import datetime, timezone
 
                 from services.embedding_service import embedding_service
 
@@ -353,7 +356,7 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                         .eq("id", memory_id)
                         .execute()
                     )
-                    if mem_res.data:
+                    if mem_res.data and isinstance(mem_res.data[0], dict):
                         memory_data = mem_res.data[0]
 
                         ai_summary = memory_data.get("ai_summary")
@@ -395,7 +398,7 @@ TECH STACK: {' '.join(ai_sum.tech_stack)}
                             )
                             created_ts = int(created_dt.timestamp())
                         except Exception:
-                            created_ts = int(datetime.utcnow().timestamp())
+                            created_ts = int(datetime.now(timezone.utc).timestamp())
 
                         metadata = {
                             "user_id": user_id,
@@ -414,7 +417,7 @@ TECH STACK: {' '.join(ai_sum.tech_stack)}
                             )
                             from workers.cluster_task import cluster_single_memory_task
 
-                            cluster_single_memory_task.apply_async(
+                            cluster_single_memory_task.apply_async(  # type: ignore
                                 args=[
                                     memory_id,
                                     user_id,

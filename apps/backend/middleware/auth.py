@@ -12,7 +12,7 @@ SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 # Ensure SUPABASE_JWT_SECRET is added to your environment variables
 JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 
-supabase_client: Client = (
+supabase_client: Client | None = (
     create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     if SUPABASE_URL and SUPABASE_ANON_KEY
     else None
@@ -35,11 +35,12 @@ async def verify_jwt(credentials: HTTPAuthorizationCredentials = Security(securi
                     status_code=500, detail="Supabase client not configured"
                 )
             user_response = supabase_client.auth.get_user(token)
-            if not user_response.user:
+            user = getattr(user_response, "user", None)
+            if not user or not getattr(user, "id", None):
                 raise HTTPException(
                     status_code=401, detail="Invalid authentication credentials"
                 )
-            return user_response.user.id
+            return getattr(user, "id")
 
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")

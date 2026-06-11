@@ -5,7 +5,7 @@ from supabase import Client, create_client
 _supabase_client = None
 
 
-def get_supabase_client() -> Client:
+def get_supabase_client() -> Client | None:
     global _supabase_client
     if _supabase_client is not None:
         return _supabase_client

@@ -26,7 +26,7 @@ async def upload_file(
 
     result = await process_upload(file, user_id)
 
-    process_memory_task.delay(
+    process_memory_task.delay(  # type: ignore
         job_id=result["job_id"],
         memory_id=result["memory_id"],
         content_type=result["content_type"],
@@ -141,7 +141,12 @@ async def ingest_url(
             insert_data["raw_transcript"] = scraped_data["raw_transcript"]
 
         mem_res = supabase.table("user_memories").insert(insert_data).execute()
-        memory_id = mem_res.data[0]["id"]
+        mem_data = (
+            mem_res.data[0]
+            if mem_res.data and isinstance(mem_res.data[0], dict)
+            else {}
+        )
+        memory_id = str(mem_data.get("id", ""))
 
         job_res = (
             supabase.table("job_tracking")
@@ -155,11 +160,16 @@ async def ingest_url(
             )
             .execute()
         )
-        job_id = job_res.data[0]["id"]
+        job_data = (
+            job_res.data[0]
+            if job_res.data and isinstance(job_res.data[0], dict)
+            else {}
+        )
+        job_id = str(job_data.get("id", ""))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database insert failed: {str(e)}")
 
-    process_memory_task.delay(
+    process_memory_task.delay(  # type: ignore
         job_id=job_id, memory_id=memory_id, content_type=payload.content_type
     )
 

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from typing import Any
 
 from PIL import Image
 
@@ -35,11 +36,10 @@ class ImageProcessor:
                     logger.warning(f"Tesseract not found at {tess_path}")
 
         self.api_key = os.getenv("GEMINI_API_KEY")
+        self.model: Any = None
         if GENAI_AVAILABLE and self.api_key:
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel("gemini-1.5-flash")
-        else:
-            self.model = None
 
         self.gemini_prompt = """
 Analyze this screenshot and extract all visible content with high structural fidelity:
@@ -75,7 +75,7 @@ Return the result strictly as a clean, valid JSON block matching this structure:
         if TESSERACT_AVAILABLE:
             try:
                 osd = pytesseract.image_to_osd(img, output_type=Output.DICT)
-                conf = osd.get("script_conf", 0)
+                conf = osd.get("script_conf", 0) if isinstance(osd, dict) else 0
                 if conf >= 80.0:
                     use_tesseract = True
             except Exception as e:
@@ -86,7 +86,7 @@ Return the result strictly as a clean, valid JSON block matching this structure:
                 f"High text confidence detected. Using Tesseract for {filepath}"
             )
             try:
-                return pytesseract.image_to_string(img)
+                return str(pytesseract.image_to_string(img))
             except Exception as e:
                 logger.error(f"Tesseract extraction failed: {e}")
                 logger.info("Falling back to Gemini API.")

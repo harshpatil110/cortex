@@ -31,7 +31,7 @@ async def stream_job_status(job_id: str, user_id: str = Depends(get_current_user
                 yield f"data: {error_job.model_dump_json()}\n\n"
                 break
 
-            if not res.data:
+            if not res.data or not isinstance(res.data[0], dict):
                 error_job = JobStatus(
                     id=job_id, status="FAILED", error_message="Job not found"
                 )
@@ -64,7 +64,7 @@ async def get_job_status(job_id: str, user_id: str = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail="Supabase client not configured")
 
     res = supabase.table("job_tracking").select("*").eq("id", job_id).execute()
-    if not res.data:
+    if not res.data or not isinstance(res.data[0], dict):
         raise HTTPException(status_code=404, detail="Job not found")
 
     job_dict = res.data[0]

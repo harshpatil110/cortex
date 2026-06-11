@@ -2,7 +2,8 @@ import asyncio
 import logging
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Any
 
 import numpy as np
 
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 class ClusteringService:
     def __init__(self):
         self.api_key = os.getenv("GEMINI_API_KEY")
+        self.model: Any = None
         if GENAI_AVAILABLE and self.api_key:
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel("gemini-1.5-flash")
@@ -77,7 +79,11 @@ class ClusteringService:
                 )
 
             plates_res = await asyncio.to_thread(_get_plates)
-            plates = plates_res.data
+            plates = (
+                [p for p in plates_res.data if isinstance(p, dict)]
+                if plates_res.data
+                else []
+            )
         except Exception as e:
             logger.error(f"Failed to fetch plates for user {user_id}: {e}")
             return
@@ -134,7 +140,7 @@ class ClusteringService:
                     {
                         "item_count": item_count,
                         "centroid_member_ids": new_centroid_ids,
-                        "updated_at": datetime.utcnow().isoformat(),
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
                     }
                 ).eq("id", target_plate_id).execute()
 
@@ -159,8 +165,8 @@ class ClusteringService:
                         "name": plate_name,
                         "item_count": 1,
                         "centroid_member_ids": [memory_id],
-                        "created_at": datetime.utcnow().isoformat(),
-                        "updated_at": datetime.utcnow().isoformat(),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
                     }
                 ).execute()
 

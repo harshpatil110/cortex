@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import List, Literal
+from typing import Any, List, Literal
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError
@@ -38,6 +38,7 @@ class SynthesisService:
         self.provider = os.getenv("LLM_PROVIDER", "gemini").lower()
         self.gemini_api_key = os.getenv("GEMINI_API_KEY")
         self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        self.model: Any = None
 
         if self.provider == "gemini":
             if GENAI_AVAILABLE and self.gemini_api_key:
@@ -46,7 +47,6 @@ class SynthesisService:
             else:
                 logger.warning("Gemini API is not configured. Falling back to ollama.")
                 self.provider = "ollama"
-                self.model = None
 
         prompt_path = os.path.join(
             os.path.dirname(__file__), "..", "..", "prompts", "synthesis_prompt.txt"

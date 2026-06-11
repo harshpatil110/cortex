@@ -3,10 +3,11 @@ import logging
 import math
 import uuid
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 from celery import shared_task
+from postgrest.types import CountMethod
 from sklearn.cluster import KMeans
 
 from services.clustering_service import clustering_service
@@ -27,7 +28,13 @@ def recluster_all_memories():
     try:
         users_res = supabase.table("user_memories").select("user_id").execute()
         user_ids = list(
-            set([row["user_id"] for row in users_res.data if row.get("user_id")])
+            set(
+                [
+                    row["user_id"]
+                    for row in users_res.data
+                    if isinstance(row, dict) and row.get("user_id")
+                ]
+            )
         )
     except Exception as e:
         logger.error(f"Failed to fetch users: {e}")
@@ -37,12 +44,14 @@ def recluster_all_memories():
         try:
             count_res = (
                 supabase.table("user_memories")
-                .select("id", count="exact")
+                .select("id", count=CountMethod.exact)
                 .eq("user_id", user_id)
                 .execute()
             )
             total_memories = (
-                count_res.count if hasattr(count_res, "count") else len(count_res.data)
+                count_res.count
+                if hasattr(count_res, "count") and count_res.count is not None
+                else len(count_res.data)
             )
 
             if total_memories <= 10:
@@ -53,7 +62,7 @@ def recluster_all_memories():
                 continue
 
             results = embedding_service.collection.get(
-                where={"user_id": user_id},
+                where={"user_id": user_id},  # type: ignore
                 include=["embeddings", "metadatas", "documents"],
             )
 
@@ -88,14 +97,14 @@ def recluster_all_memories():
 
                 meta = metadatas[i] if metadatas else {}
                 tags_csv = meta.get("tags_csv", "")
-                if tags_csv:
+                if isinstance(tags_csv, str) and tags_csv:
                     clusters[label]["tags"].extend(tags_csv.split(","))
 
             # Delete old plates and memory_plates safely
             old_plates = (
                 supabase.table("plates").select("id").eq("user_id", user_id).execute()
             )
-            old_plate_ids = [p["id"] for p in old_plates.data]
+            old_plate_ids = [p["id"] for p in old_plates.data if isinstance(p, dict)]
             if old_plate_ids:
                 # supabase rest api has limit on how many items can be deleted
                 # via in_, but usually fine for plate ids
@@ -122,8 +131,8 @@ def recluster_all_memories():
                         "name": plate_name,
                         "item_count": len(cluster_data["ids"]),
                         "centroid_member_ids": centroid_ids,
-                        "created_at": datetime.utcnow().isoformat(),
-                        "updated_at": datetime.utcnow().isoformat(),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
                     }
                 ).execute()
 

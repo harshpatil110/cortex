@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import List
+from typing import Any, List
 
 from PIL import Image
 
@@ -18,11 +18,11 @@ except ImportError:
 class VisionService:
     def __init__(self):
         self.api_key = os.getenv("GEMINI_API_KEY")
+        self.model: Any = None
         if GENAI_AVAILABLE and self.api_key:
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel("gemini-1.5-flash")
         else:
-            self.model = None
             if not GENAI_AVAILABLE:
                 logger.error("google-generativeai package not installed.")
             elif not self.api_key:

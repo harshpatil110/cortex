@@ -13,7 +13,7 @@ SUPABASE_KEY = os.getenv(
     "SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_ANON_KEY", "")
 )
 
-supabase: Client = (
+supabase: Client | None = (
     create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 )
 
@@ -53,8 +53,8 @@ async def process_upload(file: UploadFile, user_id: str) -> Dict[str, str]:
     # Reset cursor so it can be read properly later
     file.file.seek(0)
 
-    if file_size > config["limit"]:
-        limit_mb = config["limit"] // (1024 * 1024)
+    if file_size > int(config["limit"]):
+        limit_mb = int(config["limit"]) // (1024 * 1024)
         raise HTTPException(
             status_code=413, detail=f"File exceeds limit of {limit_mb}MB"
         )
@@ -74,7 +74,7 @@ async def process_upload(file: UploadFile, user_id: str) -> Dict[str, str]:
 
     # 1. Upload to Supabase Storage
     try:
-        supabase.storage.from_(bucket_name).upload(
+        supabase.storage.from_(str(bucket_name)).upload(
             storage_path, full_bytes, file_options={"content-type": mime_type}
         )
     except Exception as e:
@@ -99,7 +99,12 @@ async def process_upload(file: UploadFile, user_id: str) -> Dict[str, str]:
             )
             .execute()
         )
-        memory_id = mem_res.data[0]["id"]
+        mem_data = (
+            mem_res.data[0]
+            if mem_res.data and isinstance(mem_res.data[0], dict)
+            else {}
+        )
+        memory_id = str(mem_data.get("id", ""))
 
         # Insert job tracking
         job_res = (
@@ -114,9 +119,18 @@ async def process_upload(file: UploadFile, user_id: str) -> Dict[str, str]:
             )
             .execute()
         )
-        job_id = job_res.data[0]["id"]
+        job_data = (
+            job_res.data[0]
+            if job_res.data and isinstance(job_res.data[0], dict)
+            else {}
+        )
+        job_id = str(job_data.get("id", ""))
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database insert failed: {str(e)}")
 
-    return {"job_id": job_id, "memory_id": memory_id, "content_type": content_type_str}
+    return {
+        "job_id": str(job_id),
+        "memory_id": str(memory_id),
+        "content_type": str(content_type_str),
+    }

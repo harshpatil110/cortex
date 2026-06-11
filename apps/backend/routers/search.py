@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/search", tags=["search"])
 async def search_memories(
     response: Response,
     q: str,
-    mode: str = "lexical",
+    mode: str = "hybrid",
     page: int = 1,
     limit: int = 20,
     content_type: Optional[str] = None,
@@ -57,9 +57,24 @@ async def search_memories(
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+    elif mode == "hybrid":
+        try:
+            cards, total_count = await search_service.hybrid_search(
+                user_id=user_id,
+                q=q,
+                limit=limit,
+                offset=offset,
+                content_type=content_type,
+                plate_id=plate_id,
+                date_from=date_from,
+                date_to=date_to,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
     else:
         raise HTTPException(
-            status_code=400, detail="Invalid mode. Must be 'lexical' or 'semantic'."
+            status_code=400,
+            detail="Invalid mode. Must be 'lexical', 'semantic', or 'hybrid'.",
         )
 
     response.headers["X-Total-Count"] = str(total_count)

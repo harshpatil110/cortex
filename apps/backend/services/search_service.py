@@ -1,5 +1,11 @@
+import asyncio
+import hashlib
+import json
 import logging
+import os
 from typing import Optional
+
+import redis.asyncio as redis
 
 from services.embedding_service import embedding_service
 from utils.supabase_client import get_supabase_client
@@ -226,6 +232,97 @@ class SearchService:
 
         # Slice for pagination
         paginated_cards = cards[offset : offset + limit]
+
+        return paginated_cards, total_count
+
+    async def hybrid_search(
+        self,
+        q: str,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+        content_type: Optional[str] = None,
+        plate_id: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+    ) -> tuple[list[dict], int]:
+        redis_client = redis.from_url(
+            os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True
+        )
+
+        cache_str = (
+            f"{user_id}:{q}:{limit}:{offset}:{content_type}:"
+            f"{plate_id}:{date_from}:{date_to}"
+        )
+        cache_hash = hashlib.sha256(cache_str.encode()).hexdigest()
+        cache_key = f"search:{user_id}:{cache_hash}"
+
+        cached_res = await redis_client.get(cache_key)
+        if cached_res:
+            try:
+                data = json.loads(cached_res)
+                await redis_client.aclose()
+                return data["cards"], data["total_count"]
+            except Exception:
+                pass
+
+        lexical_task = asyncio.to_thread(
+            self.lexical_search,
+            user_id,
+            q,
+            30,
+            0,
+            content_type,
+            plate_id,
+            date_from,
+            date_to,
+        )
+        semantic_task = self.semantic_search(
+            user_id, q, 30, 0, content_type, plate_id, date_from, date_to
+        )
+
+        (lexical_cards, lexical_total), (
+            semantic_cards,
+            semantic_total,
+        ) = await asyncio.gather(lexical_task, semantic_task, return_exceptions=False)
+
+        k = 60
+        rrf_scores = {}
+        unified_cards = {}
+
+        for rank, card in enumerate(lexical_cards):
+            c_id = card["id"]
+            if c_id not in unified_cards:
+                unified_cards[c_id] = card
+                rrf_scores[c_id] = 0.0
+            rrf_scores[c_id] += 1.0 / (k + rank + 1)
+
+        for rank, card in enumerate(semantic_cards):
+            c_id = card["id"]
+            if c_id not in unified_cards:
+                unified_cards[c_id] = card
+                rrf_scores[c_id] = 0.0
+            rrf_scores[c_id] += 1.0 / (k + rank + 1)
+
+        sorted_ids = sorted(
+            rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True
+        )
+
+        final_cards = []
+        for c_id in sorted_ids:
+            card = unified_cards[c_id].copy()
+            card["rrf_score"] = rrf_scores[c_id]
+            final_cards.append(card)
+
+        paginated_cards = final_cards[offset : offset + limit]
+        total_count = max(lexical_total, semantic_total)
+
+        await redis_client.setex(
+            cache_key,
+            300,
+            json.dumps({"cards": paginated_cards, "total_count": total_count}),
+        )
+        await redis_client.aclose()
 
         return paginated_cards, total_count
 

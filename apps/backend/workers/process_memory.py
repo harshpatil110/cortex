@@ -432,8 +432,34 @@ TECH STACK: {' '.join(ai_sum.tech_stack)}
             else:
                 mock_stage(stage)
 
+        user_id = None
+        if supabase:
+            res = (
+                supabase.table("user_memories")
+                .select("user_id")
+                .eq("id", memory_id)
+                .execute()
+            )
+            if res.data:
+                user_id = res.data[0].get("user_id")
+
         update_job_stage(job_id, "COMPLETE", "COMPLETE")
 
+        if user_id:
+            try:
+                import os
+
+                import redis
+
+                redis_client = redis.from_url(
+                    os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+                    decode_responses=True,
+                )
+                for key in redis_client.scan_iter(match=f"search:{user_id}:*"):
+                    redis_client.delete(key)
+                redis_client.close()
+            except Exception as e:
+                logger.error(f"Failed to invalidate cache for user {user_id}: {e}")
     except Exception as e:
         logger.error(f"process_memory_task failed for job {job_id}: {e}")
         update_job_stage(job_id, "FAILED", "FAILED", str(e))

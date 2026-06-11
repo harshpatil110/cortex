@@ -50,7 +50,7 @@ class EmbeddingService:
 
     async def upsert_memory(
         self, memory_id: str, embedding_text: str, metadata: dict
-    ) -> None:
+    ) -> list[float]:
         """Inserts or updates a vector in ChromaDB with fault-tolerance."""
         # Note: Importing supabase inside the function to avoid circular imports if any
         from utils.supabase_client import get_supabase_client
@@ -85,7 +85,7 @@ class EmbeddingService:
                     await asyncio.to_thread(_update_db_success)
 
                 logger.info(f"Successfully embedded and upserted memory {memory_id}")
-                return
+                return embedding
 
             except Exception as e:
                 logger.warning(

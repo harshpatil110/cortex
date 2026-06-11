@@ -410,7 +410,7 @@ TECH STACK: {' '.join(ai_sum.tech_stack)}
                         }
 
                         try:
-                            asyncio.run(
+                            embedding = asyncio.run(
                                 embedding_service.upsert_memory(
                                     memory_id, embedding_text, metadata
                                 )
@@ -422,6 +422,8 @@ TECH STACK: {' '.join(ai_sum.tech_stack)}
                                     memory_id,
                                     user_id,
                                     ai_sum.tags + ai_sum.tech_stack,
+                                    embedding,
+                                    metadata,
                                 ]
                             )
                         except Exception as e:

@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-canvas: #F7F5F0;
+  --color-canvas-alt: #F2F0EA;
+  --color-paper: #FAF9F6;
+  --color-paper-light: #F5F5F0;
+  
+  /* Accent Colors */
+  --color-accent-primary: #BFDBFE;
+  --color-accent-action: #93C5FD;
+  --color-accent-text: #1E40AF;
+  --color-accent-focus: #60A5FA;
+
+  /* Typography */
+  --font-sans: "Inter", "DM Sans", system-ui, sans-serif;
+  --font-display: "DM Serif Display", "Playfair Display", serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+}
+
+/* Custom Base Styles based on design.md */
+@layer base {
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-stone-900);
+    font-family: var(--font-sans);
+  }
+}

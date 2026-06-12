@@ -3,66 +3,52 @@ import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext()
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      setUser(session?.user ?? null)
+      setUser(session?.user || null)
       setLoading(false)
-    }
-
-    fetchSession()
+    })
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      setUser(session?.user ?? null)
+      setUser(session?.user || null)
     })
 
-    return () => {
-      subscription.unsubscribe()
-    }
+    return () => subscription.unsubscribe()
   }, [])
 
-  const signIn = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    if (error) throw error
-    return data
-  }
+  const signIn = (email, password) =>
+    supabase.auth.signInWithPassword({ email, password })
+  const signUp = (email, password, options = {}) =>
+    supabase.auth.signUp({ email, password, ...options })
+  const signOut = () => supabase.auth.signOut()
+  const signInWithGoogle = () =>
+    supabase.auth.signInWithOAuth({ provider: 'google' })
 
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
-  }
-
-  const signInWithGoogle = async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-    })
-    if (error) throw error
-    return data
+  const value = {
+    user,
+    session,
+    loading,
+    signIn,
+    signUp,
+    signOut,
+    signInWithGoogle,
   }
 
   return (
-    <AuthContext.Provider
-      value={{ user, session, signIn, signOut, signInWithGoogle, loading }}
-    >
+    <AuthContext.Provider value={value}>
       {!loading && children}
     </AuthContext.Provider>
   )
 }
 
-export const useAuth = () => {
-  return useContext(AuthContext)
-}
+// eslint-disable-next-line react-refresh/only-export-components
+export const useAuth = () => useContext(AuthContext)

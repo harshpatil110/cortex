@@ -9,7 +9,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from middleware.request_id import RequestIDMiddleware
-from routers import chat, graph, ingest, jobs, memories, search, syllabus
+from routers import chat, graph, ingest, jobs, memories, plates, search, syllabus
 from services.embedding_service import embedding_service
 from utils.errors import AppError
 
@@ -89,6 +89,7 @@ app.include_router(graph.router)
 app.include_router(chat.router)
 app.include_router(syllabus.router)
 app.include_router(jobs.router)
+app.include_router(plates.router)
 
 
 @app.get("/api/health")

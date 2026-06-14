@@ -1,7 +1,12 @@
 # flake8: noqa: E402
+import asyncio
 import logging
 import os
+import sys
 from contextlib import asynccontextmanager
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from dotenv import load_dotenv
 
@@ -50,6 +55,8 @@ app = FastAPI(title="Cortex API", lifespan=lifespan)
 
 origins = [
     os.getenv("VITE_FRONTEND_URL", "http://localhost:5173"),
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
     "http://localhost:3000",
 ]
 app.add_middleware(
@@ -107,3 +114,24 @@ async def health_check():
         "redis": "ok" if os.getenv("REDIS_URL") else "error",
         "celery_workers": 0,
     }
+
+
+if __name__ == "__main__":
+    import asyncio
+    import sys
+
+    import uvicorn
+
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+        try:
+            import uvicorn.loops.asyncio
+            import uvicorn.loops.auto
+
+            uvicorn.loops.auto.auto_loop_setup = lambda: None
+            uvicorn.loops.asyncio.asyncio_setup = lambda: None
+        except Exception:
+            pass
+
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)

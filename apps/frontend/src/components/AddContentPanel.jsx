@@ -17,6 +17,7 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Badge } from './ui/Badge'
 import { Spinner } from './ui/Spinner'
+import { Toast } from './ui/Toast'
 import { useIngestionJob } from '../hooks/useIngestionJob'
 import { api } from '../lib/api'
 import { cn } from '../lib/utils'
@@ -123,6 +124,7 @@ export function AddContentPanel() {
   const [contentType, setContentType] = useState(null)
   const [selectedFile, setSelectedFile] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [toastError, setToastError] = useState(null)
   const [lastPayload, setLastPayload] = useState(null)
   const queryClient = useQueryClient()
 
@@ -192,6 +194,13 @@ export function AddContentPanel() {
       }
     } catch (err) {
       console.error('Ingestion submission failed:', err)
+      if (err.code === 'ERR_NETWORK' || !err.response) {
+        setToastError('Cannot connect to server. Is the backend running?')
+      } else {
+        setToastError(
+          err.response?.data?.detail || 'An error occurred during submission.'
+        )
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -218,6 +227,13 @@ export function AddContentPanel() {
       if (jobId) openJobStream(jobId)
     } catch (err) {
       console.error('Retry failed:', err)
+      if (err.code === 'ERR_NETWORK' || !err.response) {
+        setToastError('Cannot connect to server. Is the backend running?')
+      } else {
+        setToastError(
+          err.response?.data?.detail || 'An error occurred during retry.'
+        )
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -264,6 +280,15 @@ export function AddContentPanel() {
 
       {/* Sheet */}
       <Sheet open={open} onClose={() => setOpen(false)}>
+        {toastError && (
+          <div className='absolute top-4 left-1/2 -translate-x-1/2 z-50 w-full px-4'>
+            <Toast
+              type='error'
+              message={toastError}
+              onClose={() => setToastError(null)}
+            />
+          </div>
+        )}
         <div className='flex items-center justify-between mb-6'>
           <h2 className='font-display text-xl font-bold text-stone-900'>
             Add Content

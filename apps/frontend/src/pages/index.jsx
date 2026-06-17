@@ -1,12 +1,8 @@
 export * from './AuthPage'
 export * from './DashboardPage'
 
-export function SearchPage() {
-  return <div>Search Page</div>
-}
-export function MemoryDetailPage() {
-  return <div>Memory Detail Page</div>
-}
+export * from './SearchPage'
+export * from './MemoryDetailPage'
 export function GraphPage() {
   return <div>Graph Page</div>
 }

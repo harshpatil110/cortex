@@ -8,7 +8,12 @@ import {
   ExternalLink,
 } from 'lucide-react'
 
-export function MemoryCard({ memory }) {
+export function MemoryCard({
+  memory,
+  isSelectionMode,
+  isSelected,
+  onToggleSelect,
+}) {
   const { content_type, ai_summary, created_at, source_url } = memory
 
   const thumbUrl =
@@ -42,9 +47,26 @@ export function MemoryCard({ memory }) {
   }
 
   return (
-    <div className='flex flex-col bg-white border border-stone-200 rounded-lg overflow-hidden transition-all hover:border-stone-300 group shadow-none'>
+    <div
+      className={`flex flex-col bg-white border rounded-lg overflow-hidden transition-all group shadow-none ${isSelectionMode ? 'cursor-pointer' : ''} ${isSelected ? 'border-stone-900 ring-1 ring-stone-900' : 'border-stone-200 hover:border-stone-300'}`}
+      onClick={() => {
+        if (isSelectionMode && onToggleSelect) {
+          onToggleSelect()
+        }
+      }}
+    >
       {/* Thumbnail Header */}
       <div className='relative aspect-video bg-stone-100 w-full overflow-hidden'>
+        {isSelectionMode && (
+          <div className='absolute top-3 right-3 z-10 bg-white/80 backdrop-blur-sm rounded p-0.5 shadow-sm border border-stone-200 flex items-center justify-center'>
+            <input
+              type='checkbox'
+              checked={isSelected}
+              readOnly
+              className='w-4 h-4 rounded border-stone-300 text-stone-900 focus:ring-stone-500 pointer-events-none'
+            />
+          </div>
+        )}
         {thumbUrl ? (
           <img
             src={thumbUrl}

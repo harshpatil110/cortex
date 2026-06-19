@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useInView } from 'react-intersection-observer'
+import { useNavigate } from 'react-router-dom'
+import { api } from '../lib/api'
 import { MemoryCard } from '../components/MemoryCard'
 import { PlateCard } from '../components/PlateCard'
 import { useMemories } from '../hooks/useMemories'
@@ -52,6 +54,12 @@ function EmptyState() {
 export function DashboardPage() {
   const [activeFilter, setActiveFilter] = useState('All')
   const [activePlateId, setActivePlateId] = useState(null)
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [topicTitle, setTopicTitle] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+
+  const navigate = useNavigate()
   const { ref, inView } = useInView()
 
   const { data: platesData, isLoading: isLoadingPlates } = usePlates()
@@ -80,11 +88,22 @@ export function DashboardPage() {
   return (
     <div className='space-y-8'>
       {/* Header */}
-      <div>
-        <h1 className='font-display text-3xl font-bold tracking-tight text-stone-900 mb-2'>
-          Dashboard
-        </h1>
-        <p className='text-sm text-stone-500'>Welcome back to your Cortex.</p>
+      <div className='flex items-center justify-between'>
+        <div>
+          <h1 className='font-display text-3xl font-bold tracking-tight text-stone-900 mb-2'>
+            Dashboard
+          </h1>
+          <p className='text-sm text-stone-500'>Welcome back to your Cortex.</p>
+        </div>
+        <Button
+          variant={isSelectionMode ? 'primary' : 'outline'}
+          onClick={() => {
+            setIsSelectionMode(!isSelectionMode)
+            if (isSelectionMode) setSelectedIds([])
+          }}
+        >
+          {isSelectionMode ? 'Cancel Selection' : 'Select'}
+        </Button>
       </div>
 
       {/* Plates Row */}
@@ -134,7 +153,19 @@ export function DashboardPage() {
         ) : (
           <>
             {items.map((memory, i) => (
-              <MemoryCard key={memory.id || i} memory={memory} />
+              <MemoryCard
+                key={memory.id || i}
+                memory={memory}
+                isSelectionMode={isSelectionMode}
+                isSelected={selectedIds.includes(memory.id)}
+                onToggleSelect={() => {
+                  setSelectedIds((prev) =>
+                    prev.includes(memory.id)
+                      ? prev.filter((id) => id !== memory.id)
+                      : [...prev, memory.id]
+                  )
+                }}
+              />
             ))}
 
             {/* Loading indicator for infinite scroll */}
@@ -148,6 +179,49 @@ export function DashboardPage() {
           </>
         )}
       </div>
+
+      {/* Floating Action Bar */}
+      {isSelectionMode && selectedIds.length > 0 && (
+        <div className='fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-stone-200 shadow-none px-4 py-3 flex flex-col sm:flex-row items-center gap-4 rounded-xl'>
+          <span className='text-sm font-medium text-stone-700 whitespace-nowrap'>
+            {selectedIds.length} selected
+          </span>
+          <div className='hidden sm:block h-4 w-px bg-stone-200'></div>
+          <input
+            type='text'
+            value={topicTitle}
+            onChange={(e) => setTopicTitle(e.target.value)}
+            placeholder='e.g., Learn Machine Learning'
+            className='text-sm border border-stone-200 rounded-md focus:border-stone-500 focus:ring-0 bg-stone-50 placeholder:text-stone-400 w-full sm:w-64 px-3 py-2'
+            disabled={isGenerating}
+          />
+          <Button
+            onClick={async () => {
+              if (!topicTitle.trim() || isGenerating) return
+              setIsGenerating(true)
+              try {
+                const res = await api.post('/api/syllabus', {
+                  memory_ids: selectedIds,
+                  topic_title: topicTitle,
+                })
+                setIsSelectionMode(false)
+                setSelectedIds([])
+                setTopicTitle('')
+                navigate(`/syllabus/${res.data.data.id}`)
+              } catch (e) {
+                console.error(e)
+                alert('Failed to generate syllabus')
+              } finally {
+                setIsGenerating(false)
+              }
+            }}
+            disabled={!topicTitle.trim() || isGenerating}
+            className='w-full sm:w-auto'
+          >
+            {isGenerating ? 'Generating...' : 'Generate Learning Path'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

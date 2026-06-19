@@ -5,6 +5,4 @@ export * from './SearchPage'
 export * from './MemoryDetailPage'
 export * from './GraphPage'
 export * from './ChatPage'
-export function SyllabusPage() {
-  return <div>Syllabus Page</div>
-}
+export * from './SyllabusPage'

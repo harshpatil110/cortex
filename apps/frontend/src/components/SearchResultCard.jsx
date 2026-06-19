@@ -32,6 +32,7 @@ export function SearchResultCard({ memory }) {
           <img
             src={memory.thumbnail_url}
             alt={memory.title}
+            loading='lazy'
             className='w-full h-full object-cover'
           />
           {memory.content_type === 'instagram_reel' && memory.source_url && (

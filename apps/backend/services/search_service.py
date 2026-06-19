@@ -1,12 +1,9 @@
 import asyncio
 import hashlib
-import json
 import logging
-import os
 from typing import Optional
 
-import redis.asyncio as redis
-
+from services.cache_service import cache_service
 from services.embedding_service import embedding_service
 from utils.supabase_client import get_supabase_client
 
@@ -14,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class SearchService:
-    def lexical_search(
+    async def lexical_search(
         self,
         user_id: str,
         q: str,
@@ -73,10 +70,15 @@ class SearchService:
             thumbnail_path = row.get("thumbnail_path")
             if thumbnail_path:
                 try:
-                    signed_url_res = supabase.storage.from_(
-                        "thumbnails"
-                    ).create_signed_url(thumbnail_path, 3600)
-                    thumbnail_url = signed_url_res.get("signedURL")
+                    cache_key = f"thumb:{thumbnail_path}"
+                    thumbnail_url = await cache_service.get(cache_key)
+                    if not thumbnail_url:
+                        signed_url_res = supabase.storage.from_(
+                            "thumbnails"
+                        ).create_signed_url(thumbnail_path, 3600)
+                        thumbnail_url = signed_url_res.get("signedURL")
+                        if thumbnail_url:
+                            await cache_service.set(cache_key, thumbnail_url, 3600)
                 except Exception as e:
                     logger.warning(
                         f"Failed to generate signed URL for {thumbnail_path}: {e}"
@@ -192,10 +194,15 @@ class SearchService:
             thumbnail_path = row.get("thumbnail_path")
             if thumbnail_path:
                 try:
-                    signed_url_res = supabase.storage.from_(
-                        "thumbnails"
-                    ).create_signed_url(thumbnail_path, 3600)
-                    thumbnail_url = signed_url_res.get("signedURL")
+                    cache_key = f"thumb:{thumbnail_path}"
+                    thumbnail_url = await cache_service.get(cache_key)
+                    if not thumbnail_url:
+                        signed_url_res = supabase.storage.from_(
+                            "thumbnails"
+                        ).create_signed_url(thumbnail_path, 3600)
+                        thumbnail_url = signed_url_res.get("signedURL")
+                        if thumbnail_url:
+                            await cache_service.set(cache_key, thumbnail_url, 3600)
                 except Exception as e:
                     logger.warning(
                         f"Failed to generate signed URL for {thumbnail_path}: {e}"
@@ -246,10 +253,6 @@ class SearchService:
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
     ) -> tuple[list[dict], int]:
-        redis_client = redis.from_url(
-            os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True
-        )
-
         cache_str = (
             f"{user_id}:{q}:{limit}:{offset}:{content_type}:"
             f"{plate_id}:{date_from}:{date_to}"
@@ -257,17 +260,14 @@ class SearchService:
         cache_hash = hashlib.sha256(cache_str.encode()).hexdigest()
         cache_key = f"search:{user_id}:{cache_hash}"
 
-        cached_res = await redis_client.get(cache_key)
+        cached_res = await cache_service.get(cache_key)
         if cached_res:
             try:
-                data = json.loads(cached_res)
-                await redis_client.aclose()
-                return data["cards"], data["total_count"]
+                return cached_res["cards"], cached_res["total_count"]
             except Exception:
                 pass
 
-        lexical_task = asyncio.to_thread(
-            self.lexical_search,
+        lexical_task = self.lexical_search(
             user_id,
             q,
             30,
@@ -317,12 +317,11 @@ class SearchService:
         paginated_cards = final_cards[offset : offset + limit]
         total_count = max(lexical_total, semantic_total)
 
-        await redis_client.setex(
+        await cache_service.set(
             cache_key,
+            {"cards": paginated_cards, "total_count": total_count},
             300,
-            json.dumps({"cards": paginated_cards, "total_count": total_count}),
         )
-        await redis_client.aclose()
 
         return paginated_cards, total_count
 

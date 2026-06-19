@@ -71,6 +71,7 @@ export function MemoryCard({
           <img
             src={thumbUrl}
             alt={title}
+            loading='lazy'
             className='w-full h-full object-cover'
           />
         ) : (

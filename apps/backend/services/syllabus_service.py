@@ -39,11 +39,13 @@ class SyllabusService:
         # Build prompt context
         context_lines = []
         for m in memories:
+            if not isinstance(m, dict):
+                continue
             title = m.get("title") or "Untitled"
             summary = m.get("ai_summary") or {}
             abstract = summary.get("abstract", "") if isinstance(summary, dict) else ""
             context_lines.append(
-                f"ID: {m['id']} | Title: {title} | Summary: {abstract}"
+                f"ID: {m.get('id', 'unknown')} | Title: {title} | Summary: {abstract}"
             )
 
         context_str = "\n".join(context_lines)
@@ -83,6 +85,8 @@ class SyllabusService:
             )
 
             result_json = response.choices[0].message.content
+            if not result_json:
+                raise Exception("LLM returned empty response")
             result = json.loads(result_json)
         except Exception as e:
             logger.error(f"LLM generation failed: {e}")
@@ -99,8 +103,14 @@ class SyllabusService:
             insert_res = (
                 supabase.table("generated_learning_paths").insert(insert_data).execute()
             )
-            if insert_res.data:
-                return insert_res.data[0]
+            if (
+                insert_res.data
+                and isinstance(insert_res.data, list)
+                and len(insert_res.data) > 0
+            ):
+                data = insert_res.data[0]
+                if isinstance(data, dict):
+                    return data
             return {"id": "temp_id", **insert_data}
         except Exception as e:
             logger.error(f"Failed to save syllabus to Supabase: {e}")
@@ -117,7 +127,9 @@ class SyllabusService:
             .order("created_at", desc=True)
             .execute()
         )
-        return res.data or []
+        if res.data and isinstance(res.data, list):
+            return [d for d in res.data if isinstance(d, dict)]
+        return []
 
     async def get_syllabus(self, user_id: str, syllabus_id: str) -> dict:
         supabase = get_supabase_client()
@@ -130,9 +142,12 @@ class SyllabusService:
             .eq("user_id", user_id)
             .execute()
         )
-        if not res.data:
+        if not res.data or not isinstance(res.data, list) or len(res.data) == 0:
             raise Exception("Not found")
-        return res.data[0]
+        data = res.data[0]
+        if not isinstance(data, dict):
+            raise Exception("Invalid data format")
+        return data
 
 
 syllabus_service = SyllabusService()

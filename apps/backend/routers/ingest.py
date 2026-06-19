@@ -3,13 +3,15 @@ import tempfile
 import uuid
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 
 from middleware.auth import get_current_user
 from schemas.ingest import IngestResponse, UrlIngestRequest
+from services.cache_service import cache_service
 from services.scrapers.instagram_scraper import InstagramScraper
 from services.scrapers.web_scraper import WebScraper
 from services.storage_service import process_upload, supabase
+from utils.limiter import limiter
 from workers.process_memory import process_memory_task
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
@@ -18,8 +20,11 @@ router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 @router.post(
     "/file", response_model=IngestResponse, status_code=status.HTTP_202_ACCEPTED
 )
+@limiter.limit("10/hour")
 async def upload_file(
-    file: UploadFile = File(...), user_id: str = Depends(get_current_user)
+    request: Request,
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user),
 ):
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found in token")
@@ -32,6 +37,8 @@ async def upload_file(
         content_type=result["content_type"],
     )
 
+    await cache_service.invalidate_memories(user_id)
+
     return IngestResponse(
         job_id=result["job_id"], memory_id=result["memory_id"], status="QUEUED"
     )
@@ -40,8 +47,11 @@ async def upload_file(
 @router.post(
     "/url", response_model=IngestResponse, status_code=status.HTTP_202_ACCEPTED
 )
+@limiter.limit("10/hour")
 async def ingest_url(
-    payload: UrlIngestRequest, user_id: str = Depends(get_current_user)
+    request: Request,
+    payload: UrlIngestRequest,
+    user_id: str = Depends(get_current_user),
 ):
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found in token")
@@ -172,5 +182,7 @@ async def ingest_url(
     process_memory_task.delay(  # type: ignore
         job_id=job_id, memory_id=memory_id, content_type=payload.content_type
     )
+
+    await cache_service.invalidate_memories(user_id)
 
     return IngestResponse(job_id=job_id, memory_id=memory_id, status="QUEUED")

@@ -17,11 +17,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from middleware.request_id import RequestIDMiddleware
 from routers import chat, graph, ingest, jobs, memories, plates, search, syllabus
 from services.embedding_service import embedding_service
 from utils.errors import AppError
+from utils.limiter import limiter
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cortex.main")
@@ -52,6 +56,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Cortex API", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 origins = [
     os.getenv("VITE_FRONTEND_URL", "http://localhost:5173"),

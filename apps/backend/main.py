@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import sentry_sdk
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,13 @@ from routers import chat, graph, ingest, jobs, memories, plates, search, syllabu
 from services.embedding_service import embedding_service
 from utils.errors import AppError
 from utils.limiter import limiter
+
+sentry_dsn = os.getenv("SENTRY_DSN")
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        traces_sample_rate=1.0,
+    )
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cortex.main")

@@ -1807,3 +1807,120 @@ apps/frontend/.vercelignore
 
 *Document prepared by: Senior Developer Review*  
 *Based on PRD v1.0 with amendments noted above*
+
+
+
+
+Here is the ultimate master testing prompt for the Antigravity IDE. This prompt commands the AI to enter an autonomous testing loop, acting as both a QA engineer and a senior developer. It details every single micro-interaction, backend pipeline, and UI state we have built so far.
+
+Copy and paste this entire block directly into your Antigravity IDE:
+
+```markdown
+Context & Task Mandate: Full-System Autonomous Testing & Patching Loop
+Project Context: "Cortex", a Personal AI Memory Engine. We have completed Phases 1 through 8. The application is a complex monorepo featuring a FastAPI/asyncpg backend, Celery/Redis background ingestion pipelines, ChromaDB vector search, an LLM-powered RAG chat, a D3.js Knowledge Graph, and a React 18/Vite frontend using Tailwind CSS v4.
+
+CRITICAL AGENTIC BEHAVIOR (THE LOOP):
+You are about to execute an autonomous Test-and-Fix loop. For every component listed below, you must:
+1. TEST: Use your browser control tools to interact with the UI, or execute network requests to the API.
+2. VERIFY: Assert the expected DOM states, network responses, console logs, and database changes.
+3. FIX: If a test fails (e.g., an element is missing, a 500 error occurs, a CORS error fires, or a UI component crashes), you MUST immediately transition to the code editor. Identify the root cause, patch the code, and re-test the component until it passes. Do not stop until all tests pass.
+
+CRITICAL CODE QUALITY MANDATE (DURING FIXES):
+If you write or modify any React code during this loop, you MUST strictly adhere to these Husky/ESLint rules:
+- NO UNUSED IMPORTS (e.g., remove `React` if unused, clean up unused `lucide-react` icons).
+- NO UNUSED VARIABLES (delete dead code).
+- ESCAPE ALL JSX ENTITIES (never use raw `'` or `"`. You MUST use `&apos;` and `&quot;`).
+
+---
+
+### PRE-FLIGHT VERIFICATION
+Before opening the browser, verify the infrastructure is running:
+- Assert `python main.py` is running on port 8000.
+- Assert `celery -A celery_app worker --pool=solo` is running.
+- Assert Redis and ChromaDB containers are running on their respective ports.
+- Assert `pnpm dev` is running on port 5173.
+- Assert `GET http://localhost:8000/api/health` returns `200 OK` with all systems reporting `"ok"`.
+
+---
+
+### PHASE 1: Authentication & Navigation
+1. **Login Flow:** Navigate to `http://localhost:5173/login`. Input test credentials. Assert successful redirect to `/dashboard`.
+2. **Protected Routes:** Attempt to navigate directly to `/dashboard` without a token. Assert redirect back to `/login`.
+3. **Lazy Loading:** Check the browser network tab. Verify that navigating to `/graph` or `/chat` correctly fetches split JavaScript chunks (React Lazy/Suspense).
+
+---
+
+### PHASE 2: Ingestion Pipeline & Celery Workers (CRITICAL)
+1. **URL Ingestion:** On the Dashboard, open the Add Content panel. Input a valid URL (e.g., a Wikipedia article). Click "Save".
+   - *Verify Frontend:* UI must show a "Pending" state or Toast notification.
+   - *Verify Backend:* Check Celery logs to ensure the task was received.
+2. **File Upload (PDF):** Upload a test PDF.
+   - *Verify API:* Assert `POST /api/ingest/file` returns a 200 (ensure `python-multipart` is handling the form data correctly).
+   - *Verify Pipeline:* The Celery worker must successfully extract text, chunk it, embed it via ChromaDB, generate an AI summary, and mark the DB job as `COMPLETED`.
+   - *Verify Cache:* Assert the Redis cache key for `memories:{user_id}` is invalidated.
+
+---
+
+### PHASE 3: Search Engine Mechanics
+1. **Global Shortcut:** From the Dashboard, press `Cmd+K` (or `Ctrl+K`). Assert the search input auto-focuses.
+2. **Debounce & URL Syncing:** Type `React patterns`. 
+   - *Verify:* The URL must update to `?q=React+patterns`. The network request must NOT fire on every keystroke (must wait ~300ms).
+3. **Hybrid Results:** Assert the `SearchResultCard` renders.
+   - *Verify UI:* Cards must have a pure white background, thin stone border (`#E7E5E4`), and NO heavy drop shadows.
+   - *Verify Links:* If a result is an Instagram Reel, verify the explicit `ExternalLink` icon overlay is present on the thumbnail and links out with `target="_blank"`.
+
+---
+
+### PHASE 4: Memory Detail Split-View Panel
+1. **Trigger:** Click a memory card from the search results or dashboard.
+   - *Verify:* The `MemoryDetailPanel` (Sheet component) must slide in from the right smoothly.
+2. **Media Viewer (Left Panel):**
+   - If PDF: Assert `react-pdf` renders the document pages.
+   - If Video: Assert the `<video>` tag correctly uses the signed Supabase URL.
+3. **AI Summary (Right Panel):**
+   - Assert the markdown parses correctly.
+   - Assert the `CodeBlock.jsx` component renders monospace text. Click the "Copy" button and assert the icon changes to a checkmark for exactly 2 seconds before reverting.
+
+---
+
+### PHASE 5: RAG Chat Streaming Interface
+1. **Empty State:** Navigate to `/chat`. Assert 3-4 suggestion chips are visible. Click one.
+2. **SSE Streaming:**
+   - *Verify Network:* Assert a connection is made to the chat endpoint and it handles the stream.
+   - *Verify UI:* The assistant message bubble must append text token-by-token (typewriter effect). The "Send" button must be disabled during streaming.
+3. **Source Citations:** Once the stream ends, assert `SourceChip` components render at the bottom of the bubble. Click a chip and assert it successfully opens the `MemoryDetailPanel`.
+
+---
+
+### PHASE 6: Knowledge Graph (D3.js)
+1. **Rendering:** Navigate to `/graph`.
+   - *Verify DOM:* The `<svg>` canvas must be mounted. Nodes (`<circle>`) and edges (`<line>`) must be present.
+   - *Verify Colors:* Node fills MUST use the muted palette (e.g., `#C4B5A5`, `#A8B5C4`). No default bright D3 colors.
+2. **Physics & Interaction:** - Click and drag the canvas to test pan/zoom.
+   - Hover a node. Assert the HTML tooltip appears with the title and content type.
+   - Click a node. Assert it opens the `MemoryDetailPanel` via the `activeMemoryId` state.
+
+---
+
+### PHASE 7: Syllabus Generator & Multi-Select
+1. **Selection Flow:** Go to `/dashboard`. Toggle "Select" mode. Check the boxes on 3 distinct memory cards.
+   - *Verify UI:* The floating action bar must appear at the bottom center saying "3 selected — Generate Learning Path".
+2. **Generation:** Click the action bar, name the syllabus, and submit.
+   - *Verify API:* Assert the backend `POST /api/syllabus` generates the structured JSON via the LLM and saves it to the `generated_learning_paths` Supabase table.
+3. **Timeline View:** Assert redirect to `/syllabus/{id}`. 
+   - *Verify UI:* The vertical timeline (CSS border-left) must render correctly.
+   - *Verify Persistence:* Click a checkbox on a step. Refresh the page. Assert the checkbox remains checked (verifying `localStorage` hydration).
+
+---
+
+### PHASE 8: Resilience, Error Boundaries, & Rate Limiting
+1. **Rate Limit Test:** Rapid-fire 101 requests to `GET /api/search`. Assert the API returns an HTTP 429 Too Many Requests response. Verify the frontend catches this and displays a dismissible Toast notification.
+2. **Error Boundary Fallback:** Manually inject a deliberate syntax error into the `GraphPage` component render cycle (e.g., read a property of `undefined`). 
+   - *Verify:* The app MUST NOT white-screen. The `ErrorFallback.jsx` component must catch it, displaying the "Something went wrong" message on a `#F7F5F0` background with a reload button. (Revert the deliberate error after testing).
+
+---
+
+### EXECUTION DIRECTIVE:
+Begin the loop now. Execute Phase 1 through 8 sequentially. Provide a terminal output log summarizing the test results of each phase. If you encounter ANY failure, fix it in the code immediately, log the fix you applied, ensure Husky rules are obeyed, and rerun that specific phase until it passes. Report "ALL SYSTEMS GREEN" only when every single checkpoint has been successfully validated.
+
+```

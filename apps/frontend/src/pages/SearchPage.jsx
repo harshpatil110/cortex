@@ -6,6 +6,8 @@ import { Input } from '../components/ui/Input'
 
 import { Badge } from '../components/ui/Badge'
 import { cn } from '../lib/utils'
+import { MemoryDetailPanel } from '../components/MemoryDetailPanel'
+import { useState } from 'react'
 
 export function SearchPage() {
   const {
@@ -18,6 +20,8 @@ export function SearchPage() {
     results,
     isLoading,
   } = useSearch()
+
+  const [activeMemoryId, setActiveMemoryId] = useState(null)
 
   const inputRef = useRef(null)
 
@@ -187,12 +191,22 @@ export function SearchPage() {
           ) : (
             <div className='space-y-4'>
               {results.map((memory) => (
-                <SearchResultCard key={memory.id} memory={memory} />
+                <SearchResultCard
+                  key={memory.id}
+                  memory={memory}
+                  onClick={() => setActiveMemoryId(memory.id)}
+                />
               ))}
             </div>
           )}
         </div>
       </div>
+
+      <MemoryDetailPanel
+        isOpen={!!activeMemoryId}
+        memoryId={activeMemoryId}
+        onClose={() => setActiveMemoryId(null)}
+      />
     </div>
   )
 }

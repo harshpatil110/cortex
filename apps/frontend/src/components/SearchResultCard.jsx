@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { Badge } from './ui/Badge'
 
-export function SearchResultCard({ memory }) {
+export function SearchResultCard({ memory, onClick }) {
   const getIcon = (type) => {
     switch (type) {
       case 'instagram_reel':
@@ -25,7 +25,10 @@ export function SearchResultCard({ memory }) {
   }
 
   return (
-    <div className='flex w-full bg-white border border-stone-200 rounded-lg overflow-hidden shadow-none hover:shadow-sm transition-shadow'>
+    <div
+      className='flex w-full bg-white border border-stone-200 rounded-lg overflow-hidden shadow-none hover:shadow-sm transition-shadow cursor-pointer'
+      onClick={onClick}
+    >
       {/* Left Side: Thumbnail */}
       {memory.thumbnail_url && (
         <div className='relative w-[160px] flex-shrink-0 bg-stone-100'>

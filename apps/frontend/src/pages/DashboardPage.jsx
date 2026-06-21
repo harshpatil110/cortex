@@ -8,6 +8,7 @@ import { useMemories } from '../hooks/useMemories'
 import { usePlates } from '../hooks/usePlates'
 import { Button } from '../components/ui/Button'
 import { FolderHeart } from 'lucide-react'
+import { MemoryDetailPanel } from '../components/MemoryDetailPanel'
 
 const FILTERS = ['All', 'Reels', 'PDFs', 'Images', 'Articles']
 
@@ -58,6 +59,7 @@ export function DashboardPage() {
   const [selectedIds, setSelectedIds] = useState([])
   const [topicTitle, setTopicTitle] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [activeMemoryId, setActiveMemoryId] = useState(null)
 
   const navigate = useNavigate()
   const { ref, inView } = useInView()
@@ -158,6 +160,7 @@ export function DashboardPage() {
                 memory={memory}
                 isSelectionMode={isSelectionMode}
                 isSelected={selectedIds.includes(memory.id)}
+                onClick={() => !isSelectionMode && setActiveMemoryId(memory.id)}
                 onToggleSelect={() => {
                   setSelectedIds((prev) =>
                     prev.includes(memory.id)
@@ -222,6 +225,13 @@ export function DashboardPage() {
           </Button>
         </div>
       )}
+
+      {/* Detail Panel */}
+      <MemoryDetailPanel
+        isOpen={!!activeMemoryId}
+        memoryId={activeMemoryId}
+        onClose={() => setActiveMemoryId(null)}
+      />
     </div>
   )
 }

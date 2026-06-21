@@ -13,6 +13,7 @@ export function MemoryCard({
   isSelectionMode,
   isSelected,
   onToggleSelect,
+  onClick,
 }) {
   const { content_type, ai_summary, created_at, source_url } = memory
 
@@ -52,6 +53,8 @@ export function MemoryCard({
       onClick={() => {
         if (isSelectionMode && onToggleSelect) {
           onToggleSelect()
+        } else if (!isSelectionMode && onClick) {
+          onClick()
         }
       }}
     >

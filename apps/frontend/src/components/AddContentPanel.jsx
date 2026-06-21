@@ -23,12 +23,14 @@ import { api } from '../lib/api'
 import { cn } from '../lib/utils'
 
 const STAGES = [
+  { key: 'UPLOADED', label: 'Uploaded' },
   { key: 'QUEUED', label: 'Queued' },
   { key: 'DOWNLOADING', label: 'Downloading' },
   { key: 'THUMBNAIL', label: 'Generating Thumbnail' },
   { key: 'AUDIO_EXTRACT', label: 'Extracting Audio' },
   { key: 'TRANSCRIBING', label: 'Transcribing' },
   { key: 'OCR_FRAMES', label: 'OCR Processing' },
+  { key: 'PDF_EXTRACT', label: 'Extracting PDF' },
   { key: 'SYNTHESIZING', label: 'AI Synthesis' },
   { key: 'EMBEDDING', label: 'Embedding' },
   { key: 'CLUSTERING', label: 'Clustering' },
@@ -198,7 +200,9 @@ export function AddContentPanel() {
         setToastError('Cannot connect to server. Is the backend running?')
       } else {
         setToastError(
-          err.response?.data?.detail || 'An error occurred during submission.'
+          err.response?.data?.message ||
+            err.response?.data?.detail ||
+            'An error occurred during submission.'
         )
       }
     } finally {
@@ -231,7 +235,9 @@ export function AddContentPanel() {
         setToastError('Cannot connect to server. Is the backend running?')
       } else {
         setToastError(
-          err.response?.data?.detail || 'An error occurred during retry.'
+          err.response?.data?.message ||
+            err.response?.data?.detail ||
+            'An error occurred during retry.'
         )
       }
     } finally {

@@ -109,6 +109,18 @@ async def app_error_exception_handler(request: Request, exc: AppError):
     )
 
 
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "INTERNAL_ERROR",
+            "message": str(exc),
+        },
+    )
+
+
 app.include_router(ingest.router)
 app.include_router(search.router)
 app.include_router(memories.router)

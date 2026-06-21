@@ -31,6 +31,8 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    worker_concurrency=1,
+    worker_pool="solo",
     broker_use_ssl=(
         {"ssl_cert_reqs": "CERT_NONE"}
         if REDIS_URL and REDIS_URL.startswith("rediss://")

@@ -203,8 +203,8 @@ export function SearchPage() {
       </div>
 
       <MemoryDetailPanel
-        isOpen={!!activeMemoryId}
-        memoryId={activeMemoryId}
+        open={!!activeMemoryId}
+        memory={results.find((m) => m.id === activeMemoryId) || null}
         onClose={() => setActiveMemoryId(null)}
       />
     </div>

@@ -281,10 +281,25 @@ class SearchService:
             user_id, q, 30, 0, content_type, plate_id, date_from, date_to
         )
 
-        (lexical_cards, lexical_total), (
-            semantic_cards,
-            semantic_total,
-        ) = await asyncio.gather(lexical_task, semantic_task, return_exceptions=False)
+        results = await asyncio.gather(
+            lexical_task, semantic_task, return_exceptions=True
+        )
+
+        # Gracefully degrade: if one method fails, use the other
+        if isinstance(results[0], BaseException):
+            logger.warning(f"Lexical search failed, using semantic only: {results[0]}")
+            lexical_cards, lexical_total = [], 0
+        else:
+            lexical_cards, lexical_total = results[0]
+
+        if isinstance(results[1], BaseException):
+            logger.warning(f"Semantic search failed, using lexical only: {results[1]}")
+            semantic_cards, semantic_total = [], 0
+        else:
+            semantic_cards, semantic_total = results[1]
+
+        if not lexical_cards and not semantic_cards:
+            return [], 0
 
         k = 60
         rrf_scores = {}

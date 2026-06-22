@@ -228,8 +228,8 @@ export function DashboardPage() {
 
       {/* Detail Panel */}
       <MemoryDetailPanel
-        isOpen={!!activeMemoryId}
-        memoryId={activeMemoryId}
+        open={!!activeMemoryId}
+        memory={items.find((m) => m.id === activeMemoryId) || null}
         onClose={() => setActiveMemoryId(null)}
       />
     </div>

@@ -42,7 +42,7 @@ class EmbeddingService:
 
         def _call_embed():
             response = genai.embed_content(
-                model="models/text-embedding-004", content=text
+                model="models/gemini-embedding-2", content=text
             )
             return response["embedding"]
 

@@ -44,7 +44,7 @@ export function SyllabusPage() {
     )
   }
 
-  const syllabus = data.syllabus_data || {}
+  const syllabus = data.syllabus_structure || {}
   const steps = syllabus.steps || []
 
   return (
@@ -52,7 +52,7 @@ export function SyllabusPage() {
       <div className='max-w-3xl mx-auto'>
         <div className='mb-12'>
           <h1 className='text-3xl font-display font-bold text-stone-900 mb-3'>
-            {syllabus.title || data.topic_title}
+            {syllabus.title || data.title || data.topic_context}
           </h1>
           <p className='text-stone-500'>
             Your personalized learning path generated from your knowledge base.

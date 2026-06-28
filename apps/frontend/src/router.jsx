@@ -6,6 +6,7 @@ import { Spinner } from './components/ui/Spinner'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { SearchPage } from './pages/SearchPage'
+import { ErrorFallback } from './components/ErrorFallback'
 import { MemoryDetailPage } from './pages/MemoryDetailPage'
 import { SyllabusPage } from './pages/SyllabusPage'
 
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
       },
       {
         element: <AppLayout />,
+        errorElement: <ErrorFallback />,
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/search', element: <SearchPage /> },

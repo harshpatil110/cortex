@@ -5,6 +5,7 @@ import { SearchResultCard } from '../components/SearchResultCard'
 import { Input } from '../components/ui/Input'
 
 import { Badge } from '../components/ui/Badge'
+import { Toast } from '../components/ui/Toast'
 import { cn } from '../lib/utils'
 import { MemoryDetailPanel } from '../components/MemoryDetailPanel'
 import { useState } from 'react'
@@ -19,9 +20,23 @@ export function SearchPage() {
     setContentType,
     results,
     isLoading,
+    error,
   } = useSearch()
 
   const [activeMemoryId, setActiveMemoryId] = useState(null)
+  const [toastError, setToastError] = useState(null)
+
+  useEffect(() => {
+    if (error) {
+      if (error.response?.status === 429) {
+        setToastError(
+          'Rate limit exceeded. Please slow down and try again later.'
+        )
+      } else {
+        setToastError('An error occurred while searching.')
+      }
+    }
+  }, [error])
 
   const inputRef = useRef(null)
 
@@ -44,6 +59,15 @@ export function SearchPage() {
 
   return (
     <div className='max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8'>
+      {toastError && (
+        <div className='fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full px-4 flex justify-center'>
+          <Toast
+            type='error'
+            message={toastError}
+            onClose={() => setToastError(null)}
+          />
+        </div>
+      )}
       {/* Header / Search Bar */}
       <div className='mb-8'>
         <h1 className='font-display text-3xl font-bold text-stone-900 mb-6'>

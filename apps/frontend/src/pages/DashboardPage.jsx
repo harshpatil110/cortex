@@ -210,7 +210,12 @@ export function DashboardPage() {
                 setIsSelectionMode(false)
                 setSelectedIds([])
                 setTopicTitle('')
-                navigate(`/syllabus/${res.data.data.id}`)
+                const syllabusId = res.data?.data?.id
+                if (syllabusId && syllabusId !== 'temp_id') {
+                  navigate(`/syllabus/${syllabusId}`)
+                } else {
+                  navigate('/dashboard')
+                }
               } catch (e) {
                 console.error(e)
                 alert('Failed to generate syllabus')

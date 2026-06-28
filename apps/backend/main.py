@@ -66,6 +66,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Cortex API", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Middleware execution order is REVERSE of add order (last added = first to run).
+# CORSMiddleware MUST be added last so it runs first, handling OPTIONS preflight
+# before SlowAPI or other middleware can reject the request with 400.
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(SlowAPIMiddleware)
 
 origins = [
@@ -81,9 +87,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.add_middleware(GZipMiddleware, minimum_size=1000)
-app.add_middleware(RequestIDMiddleware)
 
 
 @app.exception_handler(HTTPException)

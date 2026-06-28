@@ -48,8 +48,7 @@ class RagService:
                 db_res = (
                     supabase.table("user_memories")
                     .select(
-                        "id, title, ai_summary, raw_transcript, "
-                        "code_blocks, thumbnail_path"
+                        "id, ai_summary, raw_transcript, " "code_blocks, thumbnail_path"
                     )
                     .in_("id", memory_ids)
                     .execute()
@@ -65,14 +64,12 @@ class RagService:
             for mem in memories:
                 mem_id = mem.get("id")
 
-                title = mem.get("title")
-                if not title:
-                    ai_summary = mem.get("ai_summary", {})
-                    title = (
-                        ai_summary.get("title", "Untitled")
-                        if isinstance(ai_summary, dict)
-                        else "Untitled"
-                    )
+                ai_summary = mem.get("ai_summary", {})
+                title = (
+                    ai_summary.get("title", "Untitled")
+                    if isinstance(ai_summary, dict)
+                    else "Untitled"
+                )
 
                 abstract = ""
                 ai_summary = mem.get("ai_summary", {})
@@ -133,7 +130,7 @@ class RagService:
             api_messages.append({"role": "user", "content": user_message})
 
             stream = await self.client.chat.completions.create(
-                model="llama3-8b-8192", messages=api_messages, stream=True
+                model="llama-3.1-8b-instant", messages=api_messages, stream=True
             )
 
             full_response = ""

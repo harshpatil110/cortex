@@ -27,7 +27,7 @@ class SyllabusService:
         # Fetch memories
         db_res = (
             supabase.table("user_memories")
-            .select("id, title, ai_summary")
+            .select("id, ai_summary")
             .in_("id", memory_ids)
             .eq("user_id", user_id)
             .execute()
@@ -41,8 +41,8 @@ class SyllabusService:
         for m in memories:
             if not isinstance(m, dict):
                 continue
-            title = m.get("title") or "Untitled"
             summary = m.get("ai_summary") or {}
+            title = summary.get("title") if isinstance(summary, dict) else "Untitled"
             abstract = summary.get("abstract", "") if isinstance(summary, dict) else ""
             context_lines.append(
                 f"ID: {m.get('id', 'unknown')} | Title: {title} | Summary: {abstract}"
@@ -76,7 +76,7 @@ class SyllabusService:
 
         try:
             response = await self.client.chat.completions.create(
-                model="llama3-8b-8192",
+                model="llama-3.1-8b-instant",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -95,8 +95,9 @@ class SyllabusService:
         # Save to DB
         insert_data = {
             "user_id": user_id,
-            "topic_title": topic_title,
-            "syllabus_data": result,
+            "title": result.get("title", f"{topic_title} Curriculum"),
+            "topic_context": topic_title,
+            "syllabus_structure": result,
         }
 
         try:

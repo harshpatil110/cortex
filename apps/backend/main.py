@@ -67,19 +67,31 @@ app = FastAPI(title="Cortex API", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Middleware execution order is REVERSE of add order (last added = first to run).
-# CORSMiddleware MUST be added last so it runs first, handling OPTIONS preflight
-# before SlowAPI or other middleware can reject the request with 400.
-app.add_middleware(RequestIDMiddleware)
-app.add_middleware(GZipMiddleware, minimum_size=1000)
-app.add_middleware(SlowAPIMiddleware)
-
 origins = [
     os.getenv("VITE_FRONTEND_URL", "http://localhost:5173"),
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
 ]
+
+
+class CORSSafeSlowAPIMiddleware(SlowAPIMiddleware):
+    """SlowAPI wrapper that lets OPTIONS preflight requests pass through."""
+
+    async def dispatch(self, request, call_next):
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        return await super().dispatch(request, call_next)
+
+
+# Middleware execution order is REVERSE of add order (last added = first to run).
+# 1. RequestIDMiddleware (added first → runs last, skips OPTIONS)
+# 2. GZipMiddleware
+# 3. CORSSafeSlowAPIMiddleware (skips OPTIONS, rate-limits everything else)
+# 4. CORSMiddleware (added last → runs first, handles preflight immediately)
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(CORSSafeSlowAPIMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

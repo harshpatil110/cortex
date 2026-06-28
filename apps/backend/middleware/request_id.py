@@ -9,6 +9,10 @@ logger = logging.getLogger(__name__)
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        # Let CORS preflight pass through untouched
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         request_id = str(uuid.uuid4())
         request.state.request_id = request_id
 

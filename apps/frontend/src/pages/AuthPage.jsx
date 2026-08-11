@@ -13,7 +13,7 @@ export function AuthPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState({})
 
-  const { signIn, signUp, signInWithGoogle } = useAuth()
+  const { signIn, signUp, signInWithGoogle, authError } = useAuth()
   const navigate = useNavigate()
 
   const validate = () => {
@@ -101,9 +101,9 @@ export function AuthPage() {
           </button>
         </div>
 
-        {errors.form && (
+        {(errors.form || authError) && (
           <div className='mb-4 p-3 rounded-sm bg-red-50 border border-red-200 text-red-600 text-sm'>
-            {errors.form}
+            {errors.form || authError}
           </div>
         )}
 

@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -33,50 +32,45 @@ export function useIngestionJob() {
         error: null,
       })
 
-      // We need the token for SSE because EventSource doesn't send Authorization headers
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        const token = session?.access_token || ''
-        const url = `${API_BASE}/api/jobs/${jobId}/stream?token=${token}`
-        const es = new EventSource(url)
-        sourcesRef.current.set(jobId, es)
+      const es = new EventSource(`${API_BASE}/api/jobs/${jobId}/stream`)
+      sourcesRef.current.set(jobId, es)
 
-        es.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data)
-            const { stage, status, error_message } = data
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          const { stage, status, error_message } = data
 
-            if (status === 'COMPLETE' || status === 'complete') {
-              updateJob(jobId, { status: 'COMPLETE', currentStage: 'COMPLETE' })
-              es.close()
-              sourcesRef.current.delete(jobId)
-            } else if (status === 'FAILED' || status === 'failed') {
-              updateJob(jobId, {
-                status: 'FAILED',
-                currentStage: stage,
-                error: error_message || 'Processing failed',
-              })
-              es.close()
-              sourcesRef.current.delete(jobId)
-            } else {
-              updateJob(jobId, {
-                status: 'PROCESSING',
-                currentStage: stage || data.current_stage,
-              })
-            }
-          } catch (e) {
-            // Non-JSON heartbeat, ignore
+          if (status === 'COMPLETE' || status === 'complete') {
+            updateJob(jobId, { status: 'COMPLETE', currentStage: 'COMPLETE' })
+            es.close()
+            sourcesRef.current.delete(jobId)
+          } else if (status === 'FAILED' || status === 'failed') {
+            updateJob(jobId, {
+              status: 'FAILED',
+              currentStage: stage,
+              error: error_message || 'Processing failed',
+            })
+            es.close()
+            sourcesRef.current.delete(jobId)
+          } else {
+            updateJob(jobId, {
+              status: 'PROCESSING',
+              currentStage: stage || data.current_stage,
+            })
           }
+        } catch (e) {
+          // Non-JSON heartbeat, ignore
         }
+      }
 
-        es.onerror = () => {
-          es.close()
-          sourcesRef.current.delete(jobId)
-          updateJob(jobId, {
-            status: 'FAILED',
-            error: 'Lost connection to server',
-          })
-        }
-      })
+      es.onerror = () => {
+        es.close()
+        sourcesRef.current.delete(jobId)
+        updateJob(jobId, {
+          status: 'FAILED',
+          error: 'Lost connection to server',
+        })
+      }
     },
     [updateJob]
   )

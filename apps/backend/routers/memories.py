@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 
 from middleware.auth import get_current_user
 from services.cache_service import cache_service
@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/memories", tags=["memories"])
 
 @router.get("")
 @router.get("/")
-async def get_memories(request: Request, user_id: str = Depends(get_current_user)):
+async def get_memories(user_id: str = Depends(get_current_user)):
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -33,9 +33,7 @@ async def get_memories(request: Request, user_id: str = Depends(get_current_user
 
 
 @router.get("/{memory_id}")
-async def get_memory(
-    request: Request, memory_id: str, user_id: str = Depends(get_current_user)
-):
+async def get_memory(memory_id: str, user_id: str = Depends(get_current_user)):
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 

@@ -14,7 +14,7 @@ except ImportError:
     GENAI_AVAILABLE = False
 
 
-CHROMA_PERSIST_PATH = os.getenv("CHROMA_PERSIST_PATH", "./data/chromadb")
+CHROMA_PERSIST_PATH = os.getenv("CHROMA_PERSIST_PATH", "./chroma_data")
 
 logger = logging.getLogger(__name__)
 

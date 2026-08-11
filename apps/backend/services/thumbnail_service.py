@@ -6,14 +6,10 @@ from typing import Optional
 
 import fitz  # PyMuPDF
 from PIL import Image
-from redis import Redis
 
 from services.storage_service import supabase
 
 logger = logging.getLogger(__name__)
-
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
 
 
 class ThumbnailService:
@@ -130,16 +126,7 @@ class ThumbnailService:
                 {"thumbnail_storage_path": f"thumbnails/{final_storage_path}"}
             ).eq("id", memory_id).execute()
 
-            signed_url_res = self.supabase.storage.from_(
-                "thumbnails"
-            ).create_signed_url(final_storage_path, 31536000)
-            signed_url = signed_url_res.get("signedURL")
-
-            if signed_url:
-                redis_key = f"thumbnail_url:{memory_id}"
-                redis_client.set(redis_key, signed_url, ex=31536000)
-
-            logger.info(f"Successfully generated/cached thumbnail for {memory_id}")
+            logger.info(f"Successfully generated thumbnail for {memory_id}")
             return final_storage_path
 
         except Exception as e:

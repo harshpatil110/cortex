@@ -12,28 +12,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import sentry_sdk
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
 
-from middleware.request_id import RequestIDMiddleware
 from routers import chat, graph, ingest, jobs, memories, plates, search, syllabus
 from services.embedding_service import embedding_service
 from utils.errors import AppError
-from utils.limiter import limiter
-
-sentry_dsn = os.getenv("SENTRY_DSN")
-if sentry_dsn:
-    sentry_sdk.init(
-        dsn=sentry_dsn,
-        traces_sample_rate=1.0,
-    )
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cortex.main")
@@ -55,17 +42,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"ChromaDB connection error: {e}")
 
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    logger.info(f"Redis configured at {redis_url}")
-
     yield
 
     logger.info("Shutting down Cortex Backend gracefully...")
 
 
 app = FastAPI(title="Cortex API", lifespan=lifespan)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 origins = [
     os.getenv("VITE_FRONTEND_URL", "http://localhost:5173"),
@@ -74,24 +56,8 @@ origins = [
     "http://localhost:3000",
 ]
 
-
-class CORSSafeSlowAPIMiddleware(SlowAPIMiddleware):
-    """SlowAPI wrapper that lets OPTIONS preflight requests pass through."""
-
-    async def dispatch(self, request, call_next):
-        if request.method == "OPTIONS":
-            return await call_next(request)
-        return await super().dispatch(request, call_next)
-
-
-# Middleware execution order is REVERSE of add order (last added = first to run).
-# 1. RequestIDMiddleware (added first → runs last, skips OPTIONS)
-# 2. GZipMiddleware
-# 3. CORSSafeSlowAPIMiddleware (skips OPTIONS, rate-limits everything else)
-# 4. CORSMiddleware (added last → runs first, handles preflight immediately)
-app.add_middleware(RequestIDMiddleware)
+# CORS runs first so OPTIONS preflight is handled before anything else.
 app.add_middleware(GZipMiddleware, minimum_size=1000)
-app.add_middleware(CORSSafeSlowAPIMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -153,8 +119,6 @@ async def health_check():
         "api": "ok",
         "database": "ok" if os.getenv("SUPABASE_URL") else "error",
         "chromadb": chroma_status,
-        "redis": "ok" if os.getenv("REDIS_URL") else "error",
-        "celery_workers": 0,
     }
 
 

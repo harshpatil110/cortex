@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -22,13 +21,7 @@ export function useChat() {
     setIsStreaming(true)
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
       const headers = { 'Content-Type': 'application/json' }
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`
-      }
 
       // Convert messages to history format required by backend
       const history = [...messages, userMessage].map((m) => ({

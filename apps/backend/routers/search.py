@@ -1,21 +1,18 @@
 import hashlib
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from middleware.auth import get_current_user
 from services.cache_service import cache_service
 from services.search_service import search_service
-from utils.limiter import limiter
 
 router = APIRouter(prefix="/api/search", tags=["search"])
 
 
 @router.get("")
 @router.get("/")
-@limiter.limit("100/minute")
 async def search_memories(
-    request: Request,
     response: Response,
     q: str,
     limit: int = 20,

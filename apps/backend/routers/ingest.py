@@ -3,16 +3,23 @@ import tempfile
 import uuid
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    UploadFile,
+    status,
+)
 
 from middleware.auth import get_current_user
 from schemas.ingest import IngestResponse, UrlIngestRequest
 from services.cache_service import cache_service
+from services.ingestion_service import process_memory
 from services.scrapers.instagram_scraper import InstagramScraper
 from services.scrapers.web_scraper import WebScraper
 from services.storage_service import process_upload, supabase
-from utils.limiter import limiter
-from workers.process_memory import process_memory_task
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
@@ -20,9 +27,8 @@ router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 @router.post(
     "/file", response_model=IngestResponse, status_code=status.HTTP_202_ACCEPTED
 )
-@limiter.limit("10/hour")
 async def upload_file(
-    request: Request,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     user_id: str = Depends(get_current_user),
 ):
@@ -31,7 +37,8 @@ async def upload_file(
 
     result = await process_upload(file, user_id)
 
-    process_memory_task.delay(  # type: ignore
+    background_tasks.add_task(
+        process_memory,
         job_id=result["job_id"],
         memory_id=result["memory_id"],
         content_type=result["content_type"],
@@ -47,9 +54,8 @@ async def upload_file(
 @router.post(
     "/url", response_model=IngestResponse, status_code=status.HTTP_202_ACCEPTED
 )
-@limiter.limit("10/hour")
 async def ingest_url(
-    request: Request,
+    background_tasks: BackgroundTasks,
     payload: UrlIngestRequest,
     user_id: str = Depends(get_current_user),
 ):
@@ -179,8 +185,11 @@ async def ingest_url(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database insert failed: {str(e)}")
 
-    process_memory_task.delay(  # type: ignore
-        job_id=job_id, memory_id=memory_id, content_type=payload.content_type
+    background_tasks.add_task(
+        process_memory,
+        job_id=job_id,
+        memory_id=memory_id,
+        content_type=payload.content_type,
     )
 
     await cache_service.invalidate_memories(user_id)

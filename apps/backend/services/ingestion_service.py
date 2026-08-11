@@ -1,22 +1,18 @@
 import logging
 import os
+import shutil
+import tempfile
 import time
+from datetime import datetime, timezone
 
-from celery import shared_task
-from supabase import Client, create_client
-
+from services.cache_service import cache_service
+from services.clustering_service import clustering_service
+from services.embedding_service import embedding_service
+from services.graph_service import graph_service
 from services.thumbnail_service import ThumbnailService
+from utils.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
-
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv(
-    "SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_ANON_KEY", "")
-)
-
-supabase: Client | None = (
-    create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
-)
 
 
 def update_job_stage(
@@ -25,6 +21,8 @@ def update_job_stage(
     status: str = "PROCESSING",
     error_message: str | None = None,
 ):
+    """Writes the current pipeline stage to the job_tracking table."""
+    supabase = get_supabase_client()
     if not supabase:
         logger.warning("Supabase client not configured. Cannot update job stage.")
         return
@@ -47,16 +45,20 @@ def mock_stage(stage_name: str):
     time.sleep(1)  # Simulate work
 
 
-@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3, retry_backoff=True)
-def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
+async def process_memory(job_id: str, memory_id: str, content_type: str):
     """
-    Master Celery orchestrator task.
-    Routes incoming memories through processing pipelines based on content type.
+    FastAPI BackgroundTask orchestrator.
+
+    Routes incoming memories through the processing pipeline based on content type.
+    Runs inside the request lifecycle (no Celery/Redis). Writes every stage to
+    job_tracking so the frontend stepper keeps working, and always ends the job in
+    COMPLETE or FAILED so the UI never hangs.
     """
     logger.info(
-        f"Starting process_memory_task for job {job_id}, "
+        f"Starting process_memory for job {job_id}, "
         f"memory {memory_id}, type {content_type}"
     )
+    supabase = get_supabase_client()
     try:
         update_job_stage(job_id, "QUEUED", "PROCESSING")
 
@@ -109,8 +111,6 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                 service = ThumbnailService()
                 service.process_thumbnail(memory_id, content_type)
             elif stage == "PDF_EXTRACT":
-                import tempfile
-
                 from services.processors.pdf_processor import PDFProcessor
 
                 processor = PDFProcessor()
@@ -147,8 +147,6 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                                 if os.path.exists(temp_pdf):
                                     os.remove(temp_pdf)
             elif stage == "AUDIO_EXTRACT":
-                import tempfile
-
                 from services.processors.audio_processor import extract_audio
 
                 if supabase:
@@ -206,9 +204,6 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                         f"Skipping TRANSCRIBING: No WAV file found for {memory_id}"
                     )
             elif stage == "OCR_FRAMES":
-                import shutil
-                import tempfile
-
                 from services.processors.video_processor import process_video_frames
 
                 if supabase:
@@ -251,9 +246,6 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                             finally:
                                 shutil.rmtree(temp_dir, ignore_errors=True)
             elif stage == "OCR_IMAGE":
-                import shutil
-                import tempfile
-
                 from services.processors.image_processor import ImageProcessor
 
                 if supabase:
@@ -301,8 +293,6 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                             finally:
                                 shutil.rmtree(temp_dir, ignore_errors=True)
             elif stage == "SYNTHESIZING":
-                import asyncio
-
                 from services.processors.synthesis_service import SynthesisService
 
                 if supabase:
@@ -331,10 +321,7 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
 
                         synthesis_service = SynthesisService()
                         try:
-                            # Run async method in sync Celery task
-                            validated_json = asyncio.run(
-                                synthesis_service.synthesize(payload)
-                            )
+                            validated_json = await synthesis_service.synthesize(payload)
 
                             supabase.table("user_memories").update(
                                 {"ai_summary": validated_json}
@@ -344,11 +331,6 @@ def process_memory_task(self, job_id: str, memory_id: str, content_type: str):
                                 f"Synthesis processing failed for {memory_id}: {e}"
                             )
             elif stage == "EMBEDDING":
-                import asyncio
-                from datetime import datetime, timezone
-
-                from services.embedding_service import embedding_service
-
                 if supabase:
                     mem_res = (
                         supabase.table("user_memories")
@@ -406,25 +388,21 @@ TECH STACK: {' '.join(ai_sum.tech_stack)}
                             "created_at": created_ts,
                             "tags_csv": ",".join(ai_sum.tags),
                             "tech_stack_csv": ",".join(ai_sum.tech_stack),
-                            "plate_id": "",  # To be filled in Task 17
+                            "plate_id": "",
                         }
 
                         try:
-                            embedding = asyncio.run(
-                                embedding_service.upsert_memory(
-                                    memory_id, embedding_text, metadata
-                                )
+                            embedding = await embedding_service.upsert_memory(
+                                memory_id, embedding_text, metadata
                             )
-                            from workers.cluster_task import cluster_single_memory_task
-
-                            cluster_single_memory_task.apply_async(  # type: ignore
-                                args=[
-                                    memory_id,
-                                    user_id,
-                                    ai_sum.tags + ai_sum.tech_stack,
-                                    embedding,
-                                    metadata,
-                                ]
+                            await clustering_service.cluster_new_memory(
+                                memory_id,
+                                user_id,
+                                embedding,
+                                ai_sum.tags + ai_sum.tech_stack,
+                            )
+                            await graph_service.map_relationships(
+                                memory_id, user_id, embedding, metadata
                             )
                         except Exception as e:
                             logger.error(
@@ -448,21 +426,10 @@ TECH STACK: {' '.join(ai_sum.tech_stack)}
         update_job_stage(job_id, "COMPLETE", "COMPLETE")
 
         if user_id:
-            try:
-                import os
+            # Flush cached search/memories results so fresh data is returned
+            await cache_service.invalidate_search(user_id)
+            await cache_service.invalidate_memories(user_id)
 
-                import redis
-
-                redis_client = redis.from_url(
-                    os.getenv("REDIS_URL", "redis://localhost:6379/0"),
-                    decode_responses=True,
-                )
-                for key in redis_client.scan_iter(match=f"search:{user_id}:*"):
-                    redis_client.delete(key)
-                redis_client.close()
-            except Exception as e:
-                logger.error(f"Failed to invalidate cache for user {user_id}: {e}")
     except Exception as e:
-        logger.error(f"process_memory_task failed for job {job_id}: {e}")
+        logger.error(f"process_memory failed for job {job_id}: {e}")
         update_job_stage(job_id, "FAILED", "FAILED", str(e))
-        raise e

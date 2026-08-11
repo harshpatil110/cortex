@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { AppLayout } from './components/layout/AppLayout'
 import { Spinner } from './components/ui/Spinner'
@@ -23,13 +23,10 @@ const fallback = (
 
 export const router = createBrowserRouter([
   {
-    path: '/',
-    element: <Navigate to='/dashboard' replace />,
-  },
-  {
     element: <AppLayout />,
     errorElement: <ErrorFallback />,
     children: [
+      { index: true, element: <DashboardPage /> },
       { path: '/dashboard', element: <DashboardPage /> },
       { path: '/search', element: <SearchPage /> },
       { path: '/memory/:id', element: <MemoryDetailPage /> },

@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AppLayout } from './components/layout/AppLayout'
@@ -9,6 +9,7 @@ import { SearchPage } from './pages/SearchPage'
 import { ErrorFallback } from './components/ErrorFallback'
 import { MemoryDetailPage } from './pages/MemoryDetailPage'
 import { SyllabusPage } from './pages/SyllabusPage'
+import LandingPage from './pages/LandingPage'
 
 const GraphPage = lazy(() =>
   import('./pages/GraphPage').then((m) => ({ default: m.GraphPage }))
@@ -25,16 +26,16 @@ const fallback = (
 
 export const router = createBrowserRouter([
   {
+    path: '/',
+    element: <LandingPage />,
+  },
+  {
     path: '/auth',
     element: <AuthPage />,
   },
   {
     element: <ProtectedRoute />,
     children: [
-      {
-        path: '/',
-        element: <Navigate to='/dashboard' replace />,
-      },
       {
         element: <AppLayout />,
         errorElement: <ErrorFallback />,

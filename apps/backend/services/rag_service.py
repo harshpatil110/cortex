@@ -138,7 +138,7 @@ class RagService:
                 if chunk.choices and chunk.choices[0].delta.content:
                     token = chunk.choices[0].delta.content
                     full_response += token
-                    yield f"data: {json.dumps({'token': token})}\n\n"
+                    yield f"data: {json.dumps({'type': 'token', 'text': token})}\n\n"
 
             citations = set(re.findall(r"\[(.*?)\]", full_response))
 
@@ -165,11 +165,11 @@ class RagService:
                         }
                     )
 
-            yield f"data: {json.dumps({'type': 'sources', 'data': sources})}\n\n"
+            yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
         except Exception as e:
             logger.error(f"RAG chat failed: {e}")
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
 
 rag_service = RagService()

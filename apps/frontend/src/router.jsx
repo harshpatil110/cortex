@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react'
 import { AppLayout } from './components/layout/AppLayout'
 import { Spinner } from './components/ui/Spinner'
 import { DashboardPage } from './pages/DashboardPage'
+import LandingPage from './pages/LandingPage'
 import { SearchPage } from './pages/SearchPage'
 import { ErrorFallback } from './components/ErrorFallback'
 import { MemoryDetailPage } from './pages/MemoryDetailPage'
@@ -23,10 +24,13 @@ const fallback = (
 
 export const router = createBrowserRouter([
   {
+    path: '/',
+    element: <LandingPage />,
+  },
+  {
     element: <AppLayout />,
     errorElement: <ErrorFallback />,
     children: [
-      { index: true, element: <DashboardPage /> },
       { path: '/dashboard', element: <DashboardPage /> },
       { path: '/search', element: <SearchPage /> },
       { path: '/memory/:id', element: <MemoryDetailPage /> },

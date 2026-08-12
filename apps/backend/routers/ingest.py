@@ -114,6 +114,8 @@ async def ingest_url(
     video_storage_path = f"{user_id}/{safe_name}.mp4"
     thumb_storage_path = f"{user_id}/{safe_name}.jpg"
 
+    mp4_uploaded = False
+    thumb_uploaded = False
     try:
         if scraped_data.get("mp4_url") and os.path.exists(mp4_path):
             with open(mp4_path, "rb") as f:
@@ -122,6 +124,7 @@ async def ingest_url(
                     f.read(),
                     file_options={"content-type": "video/mp4"},
                 )
+            mp4_uploaded = True
 
         if os.path.exists(thumb_path):
             with open(thumb_path, "rb") as f:
@@ -130,6 +133,7 @@ async def ingest_url(
                     f.read(),
                     file_options={"content-type": "image/jpeg"},
                 )
+            thumb_uploaded = True
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Storage upload failed: {str(e)}")
     finally:
@@ -150,8 +154,10 @@ async def ingest_url(
             "indexed": False,
         }
 
-        if scraped_data.get("mp4_url") and os.path.exists(mp4_path):
+        if mp4_uploaded:
             insert_data["storage_path"] = f"raw-media/{video_storage_path}"
+        if thumb_uploaded:
+            insert_data["thumbnail_storage_path"] = f"thumbnails/{thumb_storage_path}"
 
         if scraped_data.get("raw_transcript"):
             insert_data["raw_transcript"] = scraped_data["raw_transcript"]

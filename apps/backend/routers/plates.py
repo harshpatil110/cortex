@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/plates", tags=["plates"])
 
 
+@router.get("")
 @router.get("/")
 async def list_plates(user_id: str = Depends(get_current_user)):
     """List all plates for the authenticated user."""

@@ -23,8 +23,10 @@ export function useChat() {
     try {
       const headers = { 'Content-Type': 'application/json' }
 
-      // Convert messages to history format required by backend
-      const history = [...messages, userMessage].map((m) => ({
+      // Convert messages to history format required by backend.
+      // Prior turns only — the current question is sent separately as user_message
+      // so the backend does not append it twice.
+      const history = messages.map((m) => ({
         role: m.role,
         content: m.content,
       }))
@@ -32,8 +34,18 @@ export function useChat() {
       const response = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ messages: history, user_message: content }),
       })
+
+      if (!response.ok) {
+        let detail = ''
+        try {
+          detail = (await response.json()).detail || ''
+        } catch {
+          // Non-JSON error body; leave detail empty
+        }
+        throw new Error(`Request failed: ${response.status} ${detail}`.trim())
+      }
 
       if (!response.body) throw new Error('ReadableStream not supported')
 
@@ -78,6 +90,17 @@ export function useChat() {
                   setMessages((prev) =>
                     prev.map((m) =>
                       m.id === assistantId ? { ...m, sources: data.sources } : m
+                    )
+                  )
+                } else if (data.type === 'error') {
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === assistantId
+                        ? {
+                            ...m,
+                            content: m.content + `\n\n_Error: ${data.error}_`,
+                          }
+                        : m
                     )
                   )
                 }

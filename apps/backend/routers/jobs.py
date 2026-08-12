@@ -28,14 +28,14 @@ async def stream_job_status(job_id: str, user_id: str = Depends(get_current_user
                 error_job = JobStatus(
                     id=job_id, status="FAILED", error_message="Database error"
                 )
-                yield f"data: {error_job.model_dump_json()}\n\n"
+                yield {"data": error_job.model_dump_json()}
                 break
 
             if not res.data or not isinstance(res.data[0], dict):
                 error_job = JobStatus(
                     id=job_id, status="FAILED", error_message="Job not found"
                 )
-                yield f"data: {error_job.model_dump_json()}\n\n"
+                yield {"data": error_job.model_dump_json()}
                 break
 
             job_dict = res.data[0]
@@ -44,11 +44,11 @@ async def stream_job_status(job_id: str, user_id: str = Depends(get_current_user
                 error_job = JobStatus(
                     id=job_id, status="FAILED", error_message="Unauthorized"
                 )
-                yield f"data: {error_job.model_dump_json()}\n\n"
+                yield {"data": error_job.model_dump_json()}
                 break
 
             job_model = JobStatus(**job_dict)
-            yield f"data: {job_model.model_dump_json()}\n\n"
+            yield {"data": job_model.model_dump_json()}
 
             if job_model.status in ["COMPLETE", "FAILED"]:
                 break

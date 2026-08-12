@@ -21,7 +21,7 @@ ALLOWED_MIMES = {
     "application/pdf": {
         "limit": 50 * 1024 * 1024,
         "bucket": "pdfs",
-        "type": "document",
+        "type": "pdf",
     },
     "image/png": {"limit": 20 * 1024 * 1024, "bucket": "screenshots", "type": "image"},
     "image/jpeg": {"limit": 20 * 1024 * 1024, "bucket": "screenshots", "type": "image"},

@@ -38,7 +38,7 @@ export function useIngestionJob() {
       es.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
-          const { stage, status, error_message } = data
+          const { current_stage, status, error_message } = data
 
           if (status === 'COMPLETE' || status === 'complete') {
             updateJob(jobId, { status: 'COMPLETE', currentStage: 'COMPLETE' })
@@ -47,7 +47,7 @@ export function useIngestionJob() {
           } else if (status === 'FAILED' || status === 'failed') {
             updateJob(jobId, {
               status: 'FAILED',
-              currentStage: stage,
+              currentStage: current_stage,
               error: error_message || 'Processing failed',
             })
             es.close()
@@ -55,7 +55,7 @@ export function useIngestionJob() {
           } else {
             updateJob(jobId, {
               status: 'PROCESSING',
-              currentStage: stage || data.current_stage,
+              currentStage: current_stage,
             })
           }
         } catch (e) {

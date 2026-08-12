@@ -1,19 +1,9 @@
 import { useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
+import { Link } from 'react-router-dom'
 
 export default function LandingPage() {
-  const { user } = useAuth()
-  const navigate = useNavigate()
   const sceneRef = useRef(null)
   const stackRef = useRef(null)
-
-  // Redirect authenticated users
-  useEffect(() => {
-    if (user) {
-      navigate('/dashboard', { replace: true })
-    }
-  }, [user, navigate])
 
   // Intersection Observer for Scroll Fade-Ins
   useEffect(() => {
@@ -74,8 +64,6 @@ export default function LandingPage() {
     }
   }, [])
 
-  if (user) return null // Avoid flashing the page before redirect
-
   return (
     <div className='min-h-screen flex flex-col font-sans text-stone-900 bg-[#F7F5F0]'>
       {/* TopNavBar */}
@@ -117,7 +105,7 @@ export default function LandingPage() {
           </nav>
           {/* Trailing Action */}
           <Link
-            to='/auth'
+            to='/dashboard'
             className='bg-stone-900 text-white text-xs font-semibold uppercase tracking-widest px-6 py-2 rounded-sm hover:bg-black transition-colors shadow-soft hidden md:block'
           >
             Enter Engine
@@ -150,7 +138,7 @@ export default function LandingPage() {
             </p>
             <div className='flex flex-wrap gap-4 mt-4'>
               <Link
-                to='/auth'
+                to='/dashboard'
                 className='bg-stone-900 text-white text-xs font-semibold uppercase tracking-widest px-8 py-3 rounded-sm hover:bg-black transition-colors shadow-soft inline-block text-center'
               >
                 Start Building

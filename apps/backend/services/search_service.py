@@ -46,8 +46,10 @@ class SearchService:
         try:
             res = supabase.rpc("lexical_search_memories", rpc_params).execute()
         except Exception as e:
-            logger.error(f"Failed to execute lexical_search_memories RPC: {e}")
-            raise RuntimeError("Failed to perform lexical search.") from e
+            logger.warning(
+                f"Lexical search RPC unavailable, degrading to empty results: {e}"
+            )
+            return [], 0
 
         rows = res.data or []
 

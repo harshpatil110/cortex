@@ -10,7 +10,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-LOCAL_USER_ID = "local-cortex-user-001"
+# Synthetic local user. Must be a valid UUID because the Supabase schema types
+# user_id as uuid in user_memories, job_tracking, plates, etc. Must match the
+# frontend's hardcoded user (apps/frontend/src/contexts/AuthContext.jsx).
+LOCAL_USER_ID = "00000000-0000-0000-0000-000000000000"
 
 
 async def get_current_user():

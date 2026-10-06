@@ -104,12 +104,19 @@ async def process_memory(job_id: str, memory_id: str, content_type: str):
             raise ValueError(f"Unknown content_type: {content_type}")
 
         wav_temp_path = None
+        embedding_failed = False
 
         for stage in stages:
             update_job_stage(job_id, stage, "PROCESSING")
             if stage == "THUMBNAIL":
-                service = ThumbnailService()
-                service.process_thumbnail(memory_id, content_type)
+                # Thumbnails are cosmetic: never fail the whole job over one.
+                try:
+                    service = ThumbnailService()
+                    service.process_thumbnail(memory_id, content_type)
+                except Exception as e:
+                    logger.warning(
+                        f"Thumbnail stage failed for {memory_id}, continuing: {e}"
+                    )
             elif stage == "PDF_EXTRACT":
                 from services.processors.pdf_processor import PDFProcessor
 
@@ -305,13 +312,18 @@ async def process_memory(job_id: str, memory_id: str, content_type: str):
                     if mem_res.data and isinstance(mem_res.data[0], dict):
                         memory_data = mem_res.data[0]
 
+                        # Creator info lives in the creator_metadata JSONB
+                        # column, not in creator_handle/title columns.
+                        creator_meta = memory_data.get("creator_metadata") or {}
                         payload = {
                             "content_type": memory_data.get("content_type"),
                             "source_url": memory_data.get("source_url"),
-                            "creator_handle": memory_data.get(
-                                "creator_handle", "unknown"
-                            ),
-                            "caption_or_title": memory_data.get("title", "unknown"),
+                            "creator_handle": creator_meta.get("handle")
+                            or creator_meta.get("author")
+                            or "unknown",
+                            "caption_or_title": creator_meta.get("title")
+                            or creator_meta.get("caption")
+                            or "unknown",
                             "raw_transcript": memory_data.get("raw_transcript", ""),
                             "ocr_extracted_text": memory_data.get(
                                 "ocr_extracted_text", ""
@@ -358,7 +370,12 @@ async def process_memory(job_id: str, memory_id: str, content_type: str):
                                 self.tags = data.get("tags", [])
 
                         ai_sum = AISummaryWrapper(ai_summary)
-                        creator_handle = memory_data.get("creator_handle", "unknown")
+                        creator_meta = memory_data.get("creator_metadata") or {}
+                        creator_handle = (
+                            creator_meta.get("handle")
+                            or creator_meta.get("author")
+                            or "unknown"
+                        )
                         raw_transcript = memory_data.get("raw_transcript", "") or ""
                         ocr_extracted_text = (
                             memory_data.get("ocr_extracted_text", "") or ""
@@ -395,20 +412,36 @@ TECH STACK: {' '.join(ai_sum.tech_stack)}
                             embedding = await embedding_service.upsert_memory(
                                 memory_id, embedding_text, metadata
                             )
-                            await clustering_service.cluster_new_memory(
-                                memory_id,
-                                user_id,
-                                embedding,
-                                ai_sum.tags + ai_sum.tech_stack,
-                            )
-                            await graph_service.map_relationships(
-                                memory_id, user_id, embedding, metadata
-                            )
                         except Exception as e:
                             logger.error(
                                 "Embedding stage failed completely for "
                                 f"{memory_id}: {e}"
                             )
+                            embedding = None
+
+                        if embedding is None:
+                            # upsert_memory swallows errors and returns None
+                            # after retries. A memory with no vector must not
+                            # be reported as successfully ingested.
+                            embedding_failed = True
+                        else:
+                            # Clustering and graph edges are best-effort: log
+                            # and continue if they fail.
+                            try:
+                                await clustering_service.cluster_new_memory(
+                                    memory_id,
+                                    user_id,
+                                    embedding,
+                                    ai_sum.tags + ai_sum.tech_stack,
+                                )
+                                await graph_service.map_relationships(
+                                    memory_id, user_id, embedding, metadata
+                                )
+                            except Exception as e:
+                                logger.error(
+                                    "Clustering/graph stage failed for "
+                                    f"{memory_id}: {e}"
+                                )
             else:
                 mock_stage(stage)
 
@@ -423,7 +456,12 @@ TECH STACK: {' '.join(ai_sum.tech_stack)}
             if res.data:
                 user_id = res.data[0].get("user_id")
 
-        update_job_stage(job_id, "COMPLETE", "COMPLETE")
+        if embedding_failed:
+            update_job_stage(
+                job_id, "FAILED", "FAILED", "Embedding stage failed; memory not indexed"
+            )
+        else:
+            update_job_stage(job_id, "COMPLETE", "COMPLETE")
 
         if user_id:
             # Flush cached search/memories results so fresh data is returned

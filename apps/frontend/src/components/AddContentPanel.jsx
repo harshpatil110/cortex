@@ -178,9 +178,9 @@ export function AddContentPanel() {
         const formData = new FormData()
         formData.append('file', selectedFile)
         setLastPayload({ type: 'file', file: selectedFile })
-        res = await api.post('/api/ingest/file', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
+        // Let the browser set Content-Type with the multipart boundary;
+        // setting it manually breaks multipart parsing on the server.
+        res = await api.post('/api/ingest/file', formData)
       } else {
         return
       }
@@ -223,9 +223,9 @@ export function AddContentPanel() {
       } else {
         const formData = new FormData()
         formData.append('file', lastPayload.file)
-        res = await api.post('/api/ingest/file', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
+        // Let the browser set Content-Type with the multipart boundary;
+        // setting it manually breaks multipart parsing on the server.
+        res = await api.post('/api/ingest/file', formData)
       }
       const jobId = res.data?.job_id || res.data?.id
       if (jobId) openJobStream(jobId)

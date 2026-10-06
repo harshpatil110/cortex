@@ -78,7 +78,7 @@ Auth is hardcoded for local single-user mode. The backend dependency `middleware
 
 ## Frontend structure
 
-Routes live in `src/router.jsx` (React Router 7 `createBrowserRouter`): `/` redirects to `/dashboard`; all pages live under `AppLayout` — `/dashboard`, `/search`, `/memory/:id`, `/graph` (lazy), `/chat` (lazy), `/syllabus`. There is no login page. `AuthProvider` still wraps the app (mocked); data fetching via TanStack Query + the shared axios `api` instance. Backend interactions happen through `src/hooks/` (`useSearch`, `useChat`, `useMemories`, `usePlates`, `useIngestionJob`). `src/pages/LandingPage.jsx` still exists but is no longer routed (was the pre-auth marketing page).
+Routes live in `src/router.jsx` (React Router 7 `createBrowserRouter`): `/` renders `LandingPage` (the marketing page); all app pages live under `AppLayout` — `/dashboard`, `/search`, `/memory/:id`, `/graph` (lazy), `/chat` (lazy), `/syllabus`, `/syllabus/:id`. There is no login page. `AuthProvider` still wraps the app (mocked); data fetching via TanStack Query + the shared axios `api` instance. Backend interactions happen through `src/hooks/` (`useSearch`, `useChat`, `useMemories`, `usePlates`, `useIngestionJob`).
 
 ## Design system
 

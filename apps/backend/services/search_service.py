@@ -5,9 +5,39 @@ from typing import Optional
 
 from services.cache_service import cache_service
 from services.embedding_service import embedding_service
+from utils.storage_paths import strip_bucket_prefix
 from utils.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
+
+THUMBNAIL_BUCKET = "thumbnails"
+THUMBNAIL_URL_TTL = 3600
+
+
+async def _signed_thumbnail_url(supabase, stored_path: str | None) -> str | None:
+    """Mint a cached signed URL for a stored thumbnail path.
+
+    Stored paths include the bucket prefix (``"thumbnails/<key>"``); the
+    prefix is stripped because the storage API expects the in-bucket key.
+    """
+    object_key = strip_bucket_prefix(stored_path, THUMBNAIL_BUCKET)
+    if not object_key:
+        return None
+    cache_key = f"thumb:{object_key}"
+    cached = await cache_service.get(cache_key)
+    if cached:
+        return cached
+    try:
+        res = supabase.storage.from_(THUMBNAIL_BUCKET).create_signed_url(
+            object_key, THUMBNAIL_URL_TTL
+        )
+        url = res.get("signedURL")
+        if url:
+            await cache_service.set(cache_key, url, THUMBNAIL_URL_TTL)
+        return url
+    except Exception as e:
+        logger.warning(f"Failed to generate signed URL for {stored_path}: {e}")
+        return None
 
 
 class SearchService:
@@ -67,24 +97,11 @@ class SearchService:
 
         cards = []
         for row in rows:
-            # Generate 1-hour signed URL for thumbnail
-            thumbnail_url = None
-            thumbnail_path = row.get("thumbnail_path")
-            if thumbnail_path:
-                try:
-                    cache_key = f"thumb:{thumbnail_path}"
-                    thumbnail_url = await cache_service.get(cache_key)
-                    if not thumbnail_url:
-                        signed_url_res = supabase.storage.from_(
-                            "thumbnails"
-                        ).create_signed_url(thumbnail_path, 3600)
-                        thumbnail_url = signed_url_res.get("signedURL")
-                        if thumbnail_url:
-                            await cache_service.set(cache_key, thumbnail_url, 3600)
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to generate signed URL for {thumbnail_path}: {e}"
-                    )
+            # Generate 1-hour signed URL for thumbnail. The RPC aliases
+            # thumbnail_storage_path to thumbnail_path.
+            thumbnail_url = await _signed_thumbnail_url(
+                supabase, row.get("thumbnail_path")
+            )
 
             # AI summary extraction
             ai_summary = row.get("ai_summary", {})
@@ -191,24 +208,11 @@ class SearchService:
             m_id = row.get("id")
             score = similarity_scores.get(m_id, 0.0)
 
-            # Generate thumbnail signed URL
-            thumbnail_url = None
-            thumbnail_path = row.get("thumbnail_path")
-            if thumbnail_path:
-                try:
-                    cache_key = f"thumb:{thumbnail_path}"
-                    thumbnail_url = await cache_service.get(cache_key)
-                    if not thumbnail_url:
-                        signed_url_res = supabase.storage.from_(
-                            "thumbnails"
-                        ).create_signed_url(thumbnail_path, 3600)
-                        thumbnail_url = signed_url_res.get("signedURL")
-                        if thumbnail_url:
-                            await cache_service.set(cache_key, thumbnail_url, 3600)
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to generate signed URL for {thumbnail_path}: {e}"
-                    )
+            # Generate thumbnail signed URL (column is thumbnail_storage_path
+            # on select("*")).
+            thumbnail_url = await _signed_thumbnail_url(
+                supabase, row.get("thumbnail_storage_path")
+            )
 
             # Extract AI summary fields
             ai_summary = row.get("ai_summary", {})

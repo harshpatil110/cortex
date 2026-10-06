@@ -8,6 +8,7 @@ import tiktoken
 from openai import AsyncOpenAI
 
 from services.embedding_service import embedding_service
+from utils.storage_paths import strip_bucket_prefix
 from utils.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
@@ -47,9 +48,7 @@ class RagService:
             if memory_ids:
                 db_res = (
                     supabase.table("user_memories")
-                    .select(
-                        "id, ai_summary, raw_transcript, " "code_blocks, thumbnail_path"
-                    )
+                    .select("id, ai_summary, raw_transcript, thumbnail_storage_path")
                     .in_("id", memory_ids)
                     .execute()
                 )
@@ -64,27 +63,23 @@ class RagService:
             for mem in memories:
                 mem_id = mem.get("id")
 
-                ai_summary = mem.get("ai_summary", {})
-                title = (
-                    ai_summary.get("title", "Untitled")
-                    if isinstance(ai_summary, dict)
-                    else "Untitled"
-                )
+                ai_summary = mem.get("ai_summary") or {}
+                if not isinstance(ai_summary, dict):
+                    ai_summary = {}
+                title = ai_summary.get("title", "Untitled")
+                abstract = ai_summary.get("abstract", "")
 
-                abstract = ""
-                ai_summary = mem.get("ai_summary", {})
-                if isinstance(ai_summary, dict):
-                    abstract = ai_summary.get("abstract", "")
-
-                code_blocks = mem.get("code_blocks") or ""
+                # Code blocks live inside the ai_summary JSONB, not in their
+                # own column.
+                code_blocks = ai_summary.get("code_blocks") or ""
                 if isinstance(code_blocks, list):
-                    code_blocks = "\n".join(code_blocks)
+                    code_blocks = "\n".join(str(b) for b in code_blocks)
 
                 raw_transcript = mem.get("raw_transcript") or ""
 
                 cited_memories[title] = {
                     "id": mem_id,
-                    "thumbnail_path": mem.get("thumbnail_path"),
+                    "thumbnail_path": mem.get("thumbnail_storage_path"),
                 }
 
                 mem_header = (
@@ -148,11 +143,12 @@ class RagService:
                     mem_info = cited_memories[cited_title]
                     url = None
                     t_path = mem_info.get("thumbnail_path")
-                    if t_path:
+                    object_key = strip_bucket_prefix(t_path, "thumbnails")
+                    if object_key:
                         try:
                             signed_url_res = supabase.storage.from_(
                                 "thumbnails"
-                            ).create_signed_url(t_path, 3600)
+                            ).create_signed_url(object_key, 3600)
                             url = signed_url_res.get("signedURL")
                         except Exception as e:
                             logger.warning(f"Signed URL failed for {t_path}: {e}")

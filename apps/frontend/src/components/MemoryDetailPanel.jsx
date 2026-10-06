@@ -47,17 +47,24 @@ export function MemoryDetailPanel({ open, onClose, memory }) {
     ai_summary,
     created_at,
     source_url,
-    transcript,
-    creator_handle,
+    raw_transcript,
+    creator_metadata,
   } = memory
 
-  const mediaUrl = memory.media_url || memory.signed_url || memory.source_url
+  // Creator handle lives in the creator_metadata JSONB column.
+  const creatorHandle =
+    creator_metadata?.handle || creator_metadata?.author || null
+
+  // Backend enriches memories with signed media_url / thumbnail_url; fall
+  // back to the original source URL only as a last resort.
+  const mediaUrl = memory.media_url || memory.thumbnail_url || memory.source_url
   const title = ai_summary?.title || memory.title || 'Untitled Memory'
   const abstract = ai_summary?.abstract || memory.description || ''
   const takeaways = ai_summary?.takeaways || []
   const techStack = ai_summary?.tech_stack || []
   const difficulty = ai_summary?.difficulty || 'Intermediate'
-  const codeSnippets = ai_summary?.code_snippets || []
+  // Code blocks are stored as ai_summary.code_blocks (synthesis output).
+  const codeSnippets = ai_summary?.code_blocks || []
 
   const handleDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages)
@@ -170,6 +177,10 @@ export function MemoryDetailPanel({ open, onClose, memory }) {
         <div className='w-full p-6 bg-white border border-stone-200 rounded-md prose prose-stone max-w-none'>
           {memory.parsed_content ? (
             <div dangerouslySetInnerHTML={{ __html: memory.parsed_content }} />
+          ) : raw_transcript ? (
+            <div className='prose-sm text-stone-700 leading-loose whitespace-pre-wrap'>
+              {raw_transcript}
+            </div>
           ) : (
             <p className='text-stone-500 italic'>
               No parsed content available.
@@ -192,9 +203,9 @@ export function MemoryDetailPanel({ open, onClose, memory }) {
       {/* Metadata Row */}
       <div className='flex items-center justify-between text-xs text-stone-500 pb-4 border-b border-stone-200'>
         <div className='flex items-center gap-3'>
-          {creator_handle && (
+          {creatorHandle && (
             <span className='font-medium text-stone-700'>
-              @{creator_handle.replace(/^@/, '')}
+              @{creatorHandle.replace(/^@/, '')}
             </span>
           )}
           <span>
@@ -277,9 +288,9 @@ export function MemoryDetailPanel({ open, onClose, memory }) {
 
   const renderTranscript = () => (
     <div className='w-full'>
-      {transcript ? (
+      {raw_transcript ? (
         <div className='prose prose-sm prose-stone max-w-none text-stone-700 leading-loose'>
-          {transcript.split('\n').map((line, i) => (
+          {raw_transcript.split('\n').map((line, i) => (
             <p key={i}>{line}</p>
           ))}
         </div>

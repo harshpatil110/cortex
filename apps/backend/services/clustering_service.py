@@ -140,7 +140,6 @@ class ClusteringService:
                     {
                         "item_count": item_count,
                         "centroid_member_ids": new_centroid_ids,
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
                     }
                 ).eq("id", target_plate_id).execute()
 
@@ -166,7 +165,6 @@ class ClusteringService:
                         "item_count": 1,
                         "centroid_member_ids": [memory_id],
                         "created_at": datetime.now(timezone.utc).isoformat(),
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
                     }
                 ).execute()
 

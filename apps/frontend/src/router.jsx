@@ -51,6 +51,7 @@ export const router = createBrowserRouter([
         ),
       },
       { path: '/syllabus', element: <SyllabusPage /> },
+      { path: '/syllabus/:id', element: <SyllabusPage /> },
     ],
   },
 ])

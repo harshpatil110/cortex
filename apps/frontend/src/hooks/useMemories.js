@@ -14,11 +14,13 @@ export function useMemories({ filter = 'All', plateId = null, query = '' }) {
 
       if (query) params.q = query
 
+      // Backend content types: instagram_reel, web_page, video, pdf, image
       const typeMap = {
-        Reels: 'reel',
+        Reels: 'instagram_reel',
         PDFs: 'pdf',
         Images: 'image',
-        Articles: 'article',
+        Articles: 'web_page',
+        Videos: 'video',
       }
 
       if (filter !== 'All') {

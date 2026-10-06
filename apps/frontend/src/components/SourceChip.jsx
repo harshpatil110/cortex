@@ -22,7 +22,7 @@ export function SourceChip({ source, onClick }) {
 
   return (
     <button
-      onClick={() => onClick(source.id)}
+      onClick={() => onClick(source.memory_id)}
       className='flex items-center gap-3 pr-4 bg-white border border-neutral-200 rounded-md overflow-hidden hover:bg-stone-50 transition-colors shadow-none text-left w-full sm:w-64 flex-shrink-0'
     >
       <div className='w-8 h-8 flex-shrink-0 bg-stone-100 flex items-center justify-center border-r border-neutral-200'>

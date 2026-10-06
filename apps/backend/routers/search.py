@@ -33,10 +33,13 @@ async def search_memories(
     cache_key = None
     if mode == "hybrid":
         cache_key_str = (
-            f"{user_id}:{q}:{limit}:{offset}:{content_type}:"
-            f"{plate_id}:{date_from}:{date_to}"
+            f"{q}:{limit}:{offset}:{content_type}:" f"{plate_id}:{date_from}:{date_to}"
         )
-        cache_key = f"search:{hashlib.sha256(cache_key_str.encode()).hexdigest()}"
+        # Key scheme must match cache_service.invalidate_search, which deletes
+        # the "search:{user_id}:" prefix after ingestion.
+        cache_key = (
+            f"search:{user_id}:{hashlib.sha256(cache_key_str.encode()).hexdigest()}"
+        )
         cached_result = await cache_service.get(cache_key)
         if cached_result:
             response.headers["X-Total-Count"] = str(cached_result.get("total_count", 0))

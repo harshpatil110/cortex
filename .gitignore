@@ -38,6 +38,8 @@ env/
 # =========================
 /data/
 data/chromadb/
+apps/backend/data/
+supabase/.temp/
 /temp/
 /temp_frames/
 *.mp4
@@ -51,4 +53,4 @@ data/chromadb/
 .idea/
 
 graphify-out
-instagram_cookies.txt 
+instagram_cookies.txt

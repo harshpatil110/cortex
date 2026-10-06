@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { api } from '../lib/api'
 
 export function useSearch() {
@@ -47,7 +47,7 @@ export function useSearch() {
       return res.data
     },
     enabled: debouncedQuery.trim().length > 0,
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   })
 
   const setParam = (key, value) => {

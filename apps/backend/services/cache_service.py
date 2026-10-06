@@ -34,7 +34,9 @@ class CacheService:
         self._store.pop(key, None)
 
     async def invalidate_memories(self, user_id: str):
-        await self.delete(f"memories:{user_id}")
+        prefix = f"memories:{user_id}:"
+        for key in [k for k in self._store if k.startswith(prefix)]:
+            self._store.pop(key, None)
 
     async def invalidate_search(self, user_id: str):
         prefix = f"search:{user_id}:"

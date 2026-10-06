@@ -52,7 +52,7 @@ class GraphService:
         try:
             db_res = (
                 supabase.table("user_memories")
-                .select("id, creator_handle")
+                .select("id, creator_metadata")
                 .in_("id", all_ids_to_fetch)
                 .execute()
             )
@@ -61,7 +61,11 @@ class GraphService:
             return
 
         rows = db_res.data or []
-        handles = {row["id"]: row.get("creator_handle", "") for row in rows}
+        # creator handle lives inside the creator_metadata JSONB column.
+        handles = {
+            row["id"]: ((row.get("creator_metadata") or {}).get("handle") or "")
+            for row in rows
+        }
 
         source_handle = handles.get(memory_id, "")
         source_tech = (

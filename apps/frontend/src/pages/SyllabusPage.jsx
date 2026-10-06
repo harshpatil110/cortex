@@ -16,6 +16,8 @@ export function SyllabusPage() {
       const res = await api.get(`/api/syllabus/${id}`)
       return res.data.data
     },
+    // Don't fire the request when no id is in the URL (e.g. bare /syllabus).
+    enabled: !!id,
   })
 
   const { data: activeMemory } = useQuery({

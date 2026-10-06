@@ -5,13 +5,14 @@ from sse_starlette.sse import EventSourceResponse
 
 from middleware.auth import get_current_user
 from schemas.base import JobStatus
-from services.storage_service import supabase
+from utils.supabase_client import get_supabase_client
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 
 @router.get("/{job_id}/stream")
 async def stream_job_status(job_id: str, user_id: str = Depends(get_current_user)):
+    supabase = get_supabase_client()
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured")
 
@@ -60,6 +61,7 @@ async def stream_job_status(job_id: str, user_id: str = Depends(get_current_user
 
 @router.get("/{job_id}", response_model=JobStatus)
 async def get_job_status(job_id: str, user_id: str = Depends(get_current_user)):
+    supabase = get_supabase_client()
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured")
 

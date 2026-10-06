@@ -97,7 +97,9 @@ async def generic_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={
             "error": "INTERNAL_ERROR",
-            "message": str(exc),
+            # Never leak internal details (paths, SQL, library internals)
+            # to clients; they are in the server log above.
+            "message": "An unexpected error occurred.",
         },
     )
 

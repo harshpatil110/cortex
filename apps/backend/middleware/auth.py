@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 # Synthetic local user. Must be a valid UUID because the Supabase schema types
 # user_id as uuid in user_memories, job_tracking, plates, etc. Must match the
 # frontend's hardcoded user (apps/frontend/src/contexts/AuthContext.jsx).
+# NOTE: this id does not exist in auth.users, so the user_id FK constraints
+# must be dropped (see supabase/migrations/008_drop_user_id_fk.sql) or every
+# INSERT will fail with a foreign-key violation.
 LOCAL_USER_ID = "00000000-0000-0000-0000-000000000000"
 
 

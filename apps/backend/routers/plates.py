@@ -35,9 +35,11 @@ async def list_plates(user_id: str = Depends(get_current_user)):
         # Enrich each plate with item_count
         for plate in plates:
             try:
+                # memory_plates has a composite PK (memory_id, plate_id) and no
+                # id column, so count on memory_id.
                 count_res = (
                     supabase.table("memory_plates")
-                    .select("id", count=CountMethod.exact)
+                    .select("memory_id", count=CountMethod.exact)
                     .eq("plate_id", str(plate["id"]))
                     .execute()
                 )
